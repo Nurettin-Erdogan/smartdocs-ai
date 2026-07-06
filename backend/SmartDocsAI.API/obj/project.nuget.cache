@@ -1,0 +1,24 @@
+{
+  "version": 2,
+  "dgSpecHash": "w1PApjjtC98=",
+  "success": true,
+  "projectFilePath": "C:\\Users\\nurettin.erdogan\\smartdocs-ai\\backend\\SmartDocsAI.API\\SmartDocsAI.API.csproj",
+  "expectedPackageFiles": [
+    "C:\\Users\\nurettin.erdogan\\.nuget\\packages\\microsoft.aspnetcore.openapi\\10.0.9\\microsoft.aspnetcore.openapi.10.0.9.nupkg.sha512",
+    "C:\\Users\\nurettin.erdogan\\.nuget\\packages\\microsoft.openapi\\2.0.0\\microsoft.openapi.2.0.0.nupkg.sha512"
+  ],
+  "logs": [
+    {
+      "code": "NU1903",
+      "level": "Warning",
+      "message": "'Microsoft.OpenApi' 2.0.0 paketinde önem derecesi yüksek olan bilinen bir https://github.com/advisories/GHSA-v5pm-xwqc-g5wc güvenlik açığı var",
+      "projectPath": "C:\\Users\\nurettin.erdogan\\smartdocs-ai\\backend\\SmartDocsAI.API\\SmartDocsAI.API.csproj",
+      "warningLevel": 1,
+      "filePath": "C:\\Users\\nurettin.erdogan\\smartdocs-ai\\backend\\SmartDocsAI.API\\SmartDocsAI.API.csproj",
+      "libraryId": "Microsoft.OpenApi",
+      "targetGraphs": [
+        "net10.0"
+      ]
+    }
+  ]
+}
