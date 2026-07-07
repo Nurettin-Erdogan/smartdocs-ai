@@ -1,0 +1,34 @@
+using System.ComponentModel.DataAnnotations;
+
+namespace SmartDocsAI.API.Models
+{
+    public class Document
+    {
+        public int Id { get; set; }
+
+        public int UserId { get; set; }
+        public User? User { get; set; }
+
+        [Required]
+        [MaxLength(255)]
+        public string Title { get; set; } = string.Empty;
+
+        [Required]
+        [MaxLength(255)]
+        public string FileName { get; set; } = string.Empty;
+
+        [Required]
+        [MaxLength(50)]
+        public string FileType { get; set; } = string.Empty;
+
+        [Required]
+        public string FilePath { get; set; } = string.Empty;
+
+        public long FileSize { get; set; }
+
+        public DateTime UploadDate { get; set; } = DateTime.UtcNow;
+
+        // Navigation Property (İlişkili Parçalar)
+        public ICollection<Chunk> Chunks { get; set; } = new List<Chunk>();
+    }
+}

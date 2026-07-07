@@ -1,0 +1,169 @@
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using SmartDocsAI.API.Data;
+using SmartDocsAI.API.DTOs;
+using SmartDocsAI.API.Interfaces;
+using SmartDocsAI.API.Models;
+using System.Security.Claims;
+
+namespace SmartDocsAI.API.Controllers
+{
+    [Authorize] // Bu controller'daki tüm işlemleri yapmak için geçerli bir JWT Token gereklidir.
+    [ApiController]
+    [Route("api/[controller]")]
+    public class DocumentsController : ControllerBase
+    {
+        private readonly AppDbContext _context;
+        private readonly IWebHostEnvironment _env;
+        private readonly IDocumentProcessor _documentProcessor;
+
+        public DocumentsController(AppDbContext context, IWebHostEnvironment env, IDocumentProcessor documentProcessor)
+        {
+            _context = context;
+            _env = env;
+            _documentProcessor = documentProcessor;
+        }
+
+        /// <summary>
+        /// Sisteme PDF dosyası yükler ve bilgilerini veritabanına kaydeder.
+        /// </summary>
+        [HttpPost("upload")]
+        public async Task<IActionResult> UploadDocument(IFormFile file)
+        {
+            if (file == null || file.Length == 0)
+            {
+                return BadRequest(new { Message = "Lütfen bir dosya seçin." });
+            }
+
+            // Sadece PDF formatına izin veriyoruz.
+            var extension = Path.GetExtension(file.FileName).ToLower();
+            if (extension != ".pdf")
+            {
+                return BadRequest(new { Message = "Yalnızca PDF belgeleri yüklenebilir." });
+            }
+
+            // JWT Token içerisinden NameIdentifier (Kullanıcı ID) bilgisini çıkarıyoruz.
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(userIdClaim))
+            {
+                return Unauthorized(new { Message = "Kullanıcı oturumu geçersiz." });
+            }
+            int userId = int.Parse(userIdClaim);
+
+            // Sunucuda dosyaların kaydedileceği klasörü belirliyoruz (Uploads/)
+            var uploadsFolder = Path.Combine(_env.ContentRootPath, "Uploads");
+            if (!Directory.Exists(uploadsFolder))
+            {
+                Directory.CreateDirectory(uploadsFolder);
+            }
+
+            // Dosya çakışmalarını önlemek için benzersiz bir dosya adı (GUID ile) üretiyoruz.
+            var uniqueFileName = $"{Guid.NewGuid()}_{file.FileName}";
+            var filePath = Path.Combine(uploadsFolder, uniqueFileName);
+
+            // Dosyayı sunucuya kaydediyoruz.
+            using (var stream = new FileStream(filePath, FileMode.Create))
+            {
+                await file.CopyToAsync(stream);
+            }
+
+            // Veritabanı modelini oluşturup kaydediyoruz.
+            var document = new Document
+            {
+                UserId = userId,
+                Title = Path.GetFileNameWithoutExtension(file.FileName),
+                FileName = uniqueFileName,
+                FileType = extension,
+                FilePath = filePath,
+                FileSize = file.Length,
+                UploadDate = DateTime.UtcNow
+            };
+
+            _context.Documents.Add(document);
+            await _context.SaveChangesAsync();
+
+            // PDF dosyasını okuyoruz ve metnini anlamsal parçalara (Chunks) bölüyoruz.
+            var chunks = await _documentProcessor.ProcessPdfAsync(document);
+
+            // Bölünen parçaları veritabanımıza (SQL Server) ekliyoruz.
+            _context.Chunks.AddRange(chunks);
+            await _context.SaveChangesAsync();
+
+            var documentDto = new DocumentDto
+            {
+                Id = document.Id,
+                Title = document.Title,
+                FileName = document.FileName,
+                FileType = document.FileType,
+                FileSize = document.FileSize,
+                UploadDate = document.UploadDate
+            };
+
+            return Ok(documentDto);
+        }
+
+        /// <summary>
+        /// Giriş yapmış olan kullanıcının yüklediği tüm belgeleri listeler.
+        /// </summary>
+        [HttpGet]
+        public async Task<IActionResult> GetDocuments()
+        {
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(userIdClaim))
+            {
+                return Unauthorized();
+            }
+            int userId = int.Parse(userIdClaim);
+
+            var documents = await _context.Documents
+                .Where(d => d.UserId == userId)
+                .Select(d => new DocumentDto
+                {
+                    Id = d.Id,
+                    Title = d.Title,
+                    FileName = d.FileName,
+                    FileType = d.FileType,
+                    FileSize = d.FileSize,
+                    UploadDate = d.UploadDate
+                })
+                .ToListAsync();
+
+            return Ok(documents);
+        }
+
+        /// <summary>
+        /// Belgeyi veritabanından ve sunucudaki fiziksel klasörden siler.
+        /// </summary>
+        [HttpDelete("{id}")]
+        public async Task<IActionResult> DeleteDocument(int id)
+        {
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(userIdClaim))
+            {
+                return Unauthorized();
+            }
+            int userId = int.Parse(userIdClaim);
+
+            // Silinecek belgeyi ve o belgenin giriş yapan kullanıcıya ait olup olmadığını sorguluyoruz.
+            var document = await _context.Documents
+                .FirstOrDefaultAsync(d => d.Id == id && d.UserId == userId);
+
+            if (document == null)
+            {
+                return NotFound(new { Message = "Belge bulunamadı veya bu belge üzerinde işlem yapma yetkiniz yok." });
+            }
+
+            // Fiziksel dosyayı sunucudan siliyoruz.
+            if (System.IO.File.Exists(document.FilePath))
+            {
+                System.IO.File.Delete(document.FilePath);
+            }
+
+            _context.Documents.Remove(document);
+            await _context.SaveChangesAsync();
+
+            return Ok(new { Message = "Belge başarıyla silindi." });
+        }
+    }
+}
