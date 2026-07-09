@@ -17,12 +17,16 @@ namespace SmartDocsAI.API.Controllers
         private readonly AppDbContext _context;
         private readonly IWebHostEnvironment _env;
         private readonly IDocumentProcessor _documentProcessor;
+        private readonly IOllamaService _ollamaService;
+        private readonly IQdrantService _qdrantService;
 
-        public DocumentsController(AppDbContext context, IWebHostEnvironment env, IDocumentProcessor documentProcessor)
+        public DocumentsController(AppDbContext context, IWebHostEnvironment env, IDocumentProcessor documentProcessor, IOllamaService ollamaService, IQdrantService qdrantService)
         {
             _context = context;
             _env = env;
             _documentProcessor = documentProcessor;
+            _ollamaService = ollamaService;
+            _qdrantService = qdrantService;
         }
 
         /// <summary>
@@ -90,6 +94,26 @@ namespace SmartDocsAI.API.Controllers
             _context.Chunks.AddRange(chunks);
             await _context.SaveChangesAsync();
 
+            var indexingStatus = "Chunklar veritabanına kaydedildi.";
+
+            if (chunks.Count > 0)
+            {
+                try
+                {
+                    var embeddings = await Task.WhenAll(chunks.Select(chunk => _ollamaService.GetEmbeddingAsync(chunk.Content)));
+                    await _qdrantService.SaveChunksAsync(chunks, embeddings.ToList());
+                    indexingStatus = "Chunklar Qdrant'a kaydedildi.";
+                }
+                catch
+                {
+                    indexingStatus = "Belge kaydedildi, ancak vektör indeksleme tamamlanamadı.";
+                }
+            }
+            else
+            {
+                indexingStatus = "Belgeden işlenecek metin çıkarılamadı.";
+            }
+
             var documentDto = new DocumentDto
             {
                 Id = document.Id,
@@ -100,7 +124,16 @@ namespace SmartDocsAI.API.Controllers
                 UploadDate = document.UploadDate
             };
 
-            return Ok(documentDto);
+            return Ok(new
+            {
+                documentDto.Id,
+                documentDto.Title,
+                documentDto.FileName,
+                documentDto.FileType,
+                documentDto.FileSize,
+                documentDto.UploadDate,
+                IndexingStatus = indexingStatus
+            });
         }
 
         /// <summary>

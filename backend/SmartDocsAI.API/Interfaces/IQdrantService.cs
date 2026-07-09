@@ -19,7 +19,7 @@ namespace SmartDocsAI.API.Interfaces
         /// <summary>
         /// Soru vektörüne en yakın (benzer) metin parçalarını Qdrant'tan getirir.
         /// </summary>
-        Task<List<QdrantSearchResult>> SearchSimilarChunksAsync(float[] queryVector, int limit = 3);
+        Task<List<QdrantSearchResult>> SearchSimilarChunksAsync(float[] queryVector, int limit = 3, List<int>? documentIds = null);
     }
 
     /// <summary>

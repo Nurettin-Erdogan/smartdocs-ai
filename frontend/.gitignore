@@ -1,0 +1,6 @@
+node_modules
+.dist
+vite.svg
+.env
+.env.local
+.env.*.local

@@ -24,11 +24,10 @@ namespace SmartDocsAI.API.Models
         [Required]
         public string FilePath { get; set; } = string.Empty;
 
+        public DateTime UploadDate { get; set; }
+
         public long FileSize { get; set; }
 
-        public DateTime UploadDate { get; set; } = DateTime.UtcNow;
-
-        // Navigation Property (İlişkili Parçalar)
         public ICollection<Chunk> Chunks { get; set; } = new List<Chunk>();
     }
 }

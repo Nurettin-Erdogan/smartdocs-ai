@@ -103,14 +103,42 @@ namespace SmartDocsAI.API.Services
             response.EnsureSuccessStatusCode();
         }
 
-        public async Task<List<QdrantSearchResult>> SearchSimilarChunksAsync(float[] queryVector, int limit = 3)
+        public async Task<List<QdrantSearchResult>> SearchSimilarChunksAsync(float[] queryVector, int limit = 3, List<int>? documentIds = null)
         {
-            var searchRequest = new
+            object searchRequest;
+
+            if (documentIds != null && documentIds.Count > 0)
             {
-                vector = queryVector,
-                limit = limit,
-                with_payload = true
-            };
+                searchRequest = new
+                {
+                    vector = queryVector,
+                    limit = limit,
+                    with_payload = true,
+                    filter = new
+                    {
+                        must = new object[]
+                        {
+                            new
+                            {
+                                key = "documentId",
+                                match = new
+                                {
+                                    any = documentIds
+                                }
+                            }
+                        }
+                    }
+                };
+            }
+            else
+            {
+                searchRequest = new
+                {
+                    vector = queryVector,
+                    limit = limit,
+                    with_payload = true
+                };
+            }
 
             // Qdrant /collections/{name}/points/search ucuna arama isteği atıyoruz.
             var response = await _httpClient.PostAsJsonAsync($"/collections/{_collectionName}/points/search", searchRequest);

@@ -17,6 +17,7 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 builder.Services.AddScoped<ITokenService, TokenService>();
 builder.Services.AddScoped<IDocumentProcessor, DocumentProcessor>();
 builder.Services.AddHttpClient<IOllamaService, OllamaService>();
+builder.Services.AddHttpClient<IQdrantService, QdrantService>();
 
 // JWT Authentication Configuration
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
