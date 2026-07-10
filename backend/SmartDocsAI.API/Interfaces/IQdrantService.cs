@@ -16,6 +16,8 @@ namespace SmartDocsAI.API.Interfaces
         /// </summary>
         Task SaveChunksAsync(List<Chunk> chunks, List<float[]> embeddings);
 
+        Task DeleteDocumentChunksAsync(int documentId);
+
         /// <summary>
         /// Soru vektörüne en yakın (benzer) metin parçalarını Qdrant'tan getirir.
         /// </summary>

@@ -218,6 +218,17 @@ namespace SmartDocsAI.API.Controllers
                 return NotFound(new { Message = "Belge bulunamadı veya bu belge üzerinde işlem yapma yetkiniz yok." });
             }
 
+            try
+            {
+                await _qdrantService.DeleteDocumentChunksAsync(document.Id);
+            }
+            catch (HttpRequestException)
+            {
+                return StatusCode(
+                    StatusCodes.Status503ServiceUnavailable,
+                    new { Message = "Belge şu anda silinemiyor. Qdrant servisine ulaşılamadı." });
+            }
+
             // Fiziksel dosyayı sunucudan siliyoruz.
             if (System.IO.File.Exists(document.FilePath))
             {
