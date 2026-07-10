@@ -1,5 +1,5 @@
 // Uygulamanın başlangıç noktasıdır.
-// SQL Server, Service, Controller ve JWT gibi yapılandırmaları hazırlar.
+// PostgreSQL, Service, Controller ve JWT gibi yapılandırmaları hazırlar.
 // Sistemi çalıştırır.
 
 using System.Text;
@@ -72,7 +72,8 @@ builder.Services.AddOpenApi();
 
 var app = builder.Build();
 
-var frontendPath = Path.GetFullPath(Path.Combine(builder.Environment.ContentRootPath, "..", "..", "frontend"));
+var frontendPath = Path.GetFullPath(Path.Combine(builder.Environment.ContentRootPath, "..", "..", "frontend", "dist"));
+var frontendBuildExists = Directory.Exists(frontendPath);
 
 using (var scope = app.Services.CreateScope())
 {
@@ -88,14 +89,18 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
-app.UseDefaultFiles(new DefaultFilesOptions
+if (frontendBuildExists)
 {
-    FileProvider = new PhysicalFileProvider(frontendPath)
-});
-app.UseStaticFiles(new StaticFileOptions
-{
-    FileProvider = new PhysicalFileProvider(frontendPath)
-});
+    app.UseDefaultFiles(new DefaultFilesOptions
+    {
+        FileProvider = new PhysicalFileProvider(frontendPath)
+    });
+    app.UseStaticFiles(new StaticFileOptions
+    {
+        FileProvider = new PhysicalFileProvider(frontendPath)
+    });
+}
+
 app.UseCors("FrontendDev");
 app.UseRateLimiter();
 
@@ -105,15 +110,18 @@ app.UseAuthorization();
 
 app.MapControllers();
 
-app.MapWhen(context =>
-    !context.Request.Path.StartsWithSegments("/api") &&
-    !Path.HasExtension(context.Request.Path), spaApp =>
+if (frontendBuildExists)
 {
-    spaApp.Run(async context =>
+    app.MapWhen(context =>
+        !context.Request.Path.StartsWithSegments("/api") &&
+        !Path.HasExtension(context.Request.Path), spaApp =>
     {
-        context.Response.ContentType = "text/html; charset=utf-8";
-        await context.Response.SendFileAsync(Path.Combine(frontendPath, "index.html"));
+        spaApp.Run(async context =>
+        {
+            context.Response.ContentType = "text/html; charset=utf-8";
+            await context.Response.SendFileAsync(Path.Combine(frontendPath, "index.html"));
+        });
     });
-});
+}
 
 app.Run();

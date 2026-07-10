@@ -19,6 +19,7 @@ export type DocumentItem = {
 
 export type ChatSource = {
   documentId: number;
+  title: string;
   chunkIndex: number;
   pageNumber: number;
   score: number;

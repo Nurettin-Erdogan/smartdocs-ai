@@ -1,300 +1,120 @@
-# 📄 SmartDocs AI
-
-> AI destekli PDF Soru-Cevap Sistemi (RAG Tabanlı)
-
-SmartDocs AI, kullanıcıların PDF belgelerini sisteme yükleyerek bu belgeler üzerinde yapay zekâ destekli soru-cevap yapmasını sağlayan modern bir web uygulamasıdır.
-
-Sistem, yüklenen PDF belgelerini analiz ederek kullanıcıların doğal dilde sordukları sorulara yalnızca ilgili belge içeriklerini kullanarak cevap verir.
-
-Bu proje staj sürecinde **ASP.NET Core**, **React**, **RAG**, **LLM**, **Docker** ve modern yazılım mimarilerini öğrenmek amacıyla **Minimum Viable Product (MVP)** yaklaşımıyla geliştirilmektedir.
-
----
-
-# 🚀 Proje Amacı
-
-Bu projenin amacı;
-
-- PDF belgelerini sisteme yüklemek
-- Belgeleri analiz etmek
-- Yapay zekâ ile belge hakkında soru sorabilmek
-- Belge içerisinden doğru bilgiyi bulmak
-- Cevapların hangi kaynaktan üretildiğini göstermek
-- Modern AI teknolojilerini gerçek bir projede kullanmaktır.
-
----
-
-# 🎯 MVP Özellikleri
-
-- ✅ Kullanıcı girişi
-- ✅ PDF yükleme
-- ✅ PDF listeleme
-- ✅ PDF silme
-- ✅ AI destekli soru-cevap
-- ✅ Kaynak gösterme
-- ✅ Sohbet geçmişi (Opsiyonel)
-
----
-
-# 🏗️ Sistem Mimarisi
-
-```
-                Kullanıcı
-                    │
-                    ▼
-            React Frontend
-                    │
-                    ▼
-        ASP.NET Core Web API
-             │            │
-             │            │
-             ▼            ▼
-      SQL Server      Ollama (LLM)
-             │            ▲
-             │            │
-             ▼            │
-        PDF Bilgileri     │
-                          │
-                    Qdrant Vector DB
-                          ▲
-                          │
-                    PDF Embeddingleri
-```
-
----
-
-# 📚 Kullanılan Teknolojiler
-
-## 💻 Frontend
-
-- React
-- Tailwind CSS
-- Axios
-
----
-
-## ⚙️ Backend
-
-- ASP.NET Core Web API
-- Entity Framework Core
-
----
-
-## 🗄️ Database
-
-### SQL Server
-
-SQL Server uygulamanın klasik verilerini saklamak için kullanılacaktır.
-
-Örneğin;
-
-- Kullanıcılar
-- Giriş bilgileri
-- PDF bilgileri
-- Dosya yolları
-- Yükleme tarihleri
-- Sohbet kayıtları
-
-Geliştirme ortamında uygulama ilk kez açıldığında örnek bir admin kullanıcı otomatik oluşturulur.
-
-- E-posta: `admin@smartdocs.ai`
-- Şifre: `Admin123!`
-
----
-
-## 🧠 Artificial Intelligence
-
-### Ollama
-
-Yapay zekâ modeli bilgisayar üzerinde yerel (local) olarak çalışacaktır.
-
-Görevleri;
-
-- Kullanıcı sorularını anlamak
-- PDF içerisindeki ilgili bilgileri kullanarak cevap üretmek
-- Türkçe doğal cevaplar oluşturmak
-
----
-
-## 🔍 Vector Database
-
-### Qdrant
-
-Qdrant, PDF belgelerinden oluşturulan **Embedding (Vektör)** verilerini saklamak için kullanılacaktır.
-
-Görevleri;
-
-- PDF içeriklerini embedding'e dönüştürmek
-- Anlamsal arama yapmak
-- Kullanıcının sorusuna en uygun metin parçalarını bulmak
-- Ollama'ya doğru bilgiyi göndermek
-
----
-
-## 🐳 Container
-
-- Docker
-
-Projenin farklı bilgisayarlarda kolayca çalıştırılabilmesi için kullanılacaktır.
-
----
-
-## 🌿 Version Control
-
-- Git
-- GitHub
-
-Kodların versiyon kontrolü ve ekip çalışması için kullanılacaktır.
-
----
-
-# 📂 Proje Yapısı
-
-```
-smartdocs-ai
-│
-├── backend
-│   └── ASP.NET Core Web API
-│
-├── frontend
-│   └── React Uygulaması
-│
-├── database
-│   └── SQL Scriptleri
-│
-├── docker
-│   └── Docker Dosyaları
-│
-├── docs
-│   └── Proje Dokümantasyonu
-│
-├── images
-│   └── Proje Görselleri
-│
-├── notes
-│   └── Staj Notları
-│
-└── README.md
-```
-
----
-
-# 🔄 Projenin Çalışma Mantığı
-
-```
-1. Kullanıcı giriş yapar
-
-        │
-
-2. PDF yükler
-
-        │
-
-3. Backend PDF'yi okur
-
-        │
-
-4. PDF küçük parçalara ayrılır (Chunking)
-
-        │
-
-5. Her parça Embedding'e dönüştürülür
-
-        │
-
-6. Embedding'ler Qdrant'a kaydedilir
-
-        │
-
-7. Kullanıcı soru sorar
-
-        │
-
-8. Soru Embedding'e dönüştürülür
-
-        │
-
-9. Qdrant en alakalı içerikleri bulur
-
-        │
-
-10. Bulunan içerikler Ollama'ya gönderilir
-
-        │
-
-11. Ollama cevap oluşturur
-
-        │
-
-12. Cevap kullanıcıya gösterilir
-```
-
----
-
-# 📅 Geliştirme Süreci
-
-- [x] Proje planlandı
-- [x] GitHub deposu oluşturuldu
-- [x] ASP.NET Core Web API kuruldu
-- [x] İlk API endpoint oluşturuldu
-- [x] Git yapılandırıldı
-- [x] Ollama kuruldu
-- [ ] SQL Server entegrasyonu
-- [ ] Entity Framework kurulumu
-- [ ] Kullanıcı sistemi
-- [ ] PDF Upload API
-- [ ] PDF Parsing
-- [ ] Embedding oluşturma
-- [ ] Qdrant entegrasyonu
-- [ ] AI Chat API
-- [ ] React Arayüzü
-- [ ] Docker Compose
-- [ ] Yayınlama
-
----
-
-# 🗄️ Veritabanı Notu
-
-Backend uygulaması açıldığında EF Core migration'ları otomatik uygulanır.
-
-Bu yüzden local development sırasında veritabanı yoksa uygulama ilk çalışmada şemayı oluşturur.
-
-İstersen manuel kurulum için [database/SmartDocsAI_Init.sql](database/SmartDocsAI_Init.sql) dosyasını da kullanabilirsin.
-
----
-
-# 🎯 Öğrenme Hedefleri
-
-Bu proje kapsamında aşağıdaki teknolojilerin öğrenilmesi hedeflenmektedir.
-
-- ASP.NET Core Web API
-- React
-- Entity Framework Core
-- SQL Server
-- REST API
-- JWT Authentication
-- Docker
-- Ollama
-- Large Language Models (LLM)
-- RAG (Retrieval-Augmented Generation)
-- Vector Database
+# SmartDocs AI
+
+SmartDocs AI, kullanıcıların PDF belgelerini yükleyip yalnızca kendi belgelerine
+dayalı yapay zekâ cevapları alabildiği RAG tabanlı bir web uygulamasıdır.
+
+## Mevcut özellikler
+
+- JWT ile kayıt ve giriş
+- Kullanıcıya özel PDF yükleme, listeleme ve silme
+- PDF imzası, dosya boyutu ve güvenli dosya adı kontrolleri
+- PdfPig ile metin çıkarma ve örtüşmeli chunk oluşturma
+- Ollama ile embedding ve Türkçe cevap üretimi
+- Qdrant ile kullanıcı belgelerine filtrelenmiş anlamsal arama
+- Kaynak belge başlığı, sayfa, parça ve benzerlik skoru
+- Sohbet geçmişi ve son mesajlarla konuşma bağlamı
+- PostgreSQL ve Entity Framework Core migration'ları
+- Giriş/kayıt endpointleri için IP bazlı hız sınırı
+
+## Teknolojiler
+
+| Katman | Teknoloji |
+| --- | --- |
+| Frontend | React 19, TypeScript, Vite, Fetch API |
+| Backend | ASP.NET Core 10 Web API |
+| Veritabanı | PostgreSQL, Entity Framework Core |
+| Vektör veritabanı | Qdrant |
+| Yapay zekâ | Ollama (`nomic-embed-text`, `llama3`) |
+| PDF işleme | PdfPig |
+
+## Çalışma akışı
+
+1. Kullanıcı PDF yükler.
+2. Backend dosyayı doğrular ve güvenli bir adla saklar.
+3. PDF metni sayfa bazında çıkarılır ve parçalara bölünür.
+4. Document ve Chunk kayıtları PostgreSQL transaction'ında saklanır.
+5. Chunk embeddingleri kontrollü gruplarla Ollama'da oluşturulur.
+6. Vektörler belge kimliği ve sayfa bilgileriyle Qdrant'a yazılır.
+7. Soru embeddinge çevrilir ve yalnızca kullanıcının belgelerinde aranır.
+8. İlgili parçalar ve son sohbet mesajları Ollama prompt'una eklenir.
+9. Cevap ve kaynaklar kullanıcıya gösterilir, sohbet geçmişine kaydedilir.
+
+## Gereksinimler
+
+- .NET 10 SDK
+- Node.js ve npm
+- PostgreSQL
 - Qdrant
-- Git & GitHub
-- Katmanlı Mimari (Layered Architecture)
+- Ollama
+- Ollama modelleri: `nomic-embed-text` ve `llama3`
 
----
+## Güvenli geliştirme ayarları
 
-# 👨‍💻 Geliştirici
+JWT anahtarı, PostgreSQL parolası ve geliştirme admin parolası Git'e
+yazılmamalıdır. Backend projesi `UserSecretsId` içerir.
 
-**Nurettin Erdoğan**
+```powershell
+dotnet user-secrets set "JwtSettings:TokenKey" "GUCLU_RASTGELE_ANAHTAR" --project backend\SmartDocsAI.API
+dotnet user-secrets set "SeedData:AdminPassword" "GUCLU_ADMIN_PAROLASI" --project backend\SmartDocsAI.API
+dotnet user-secrets set "ConnectionStrings:DefaultConnection" "Host=localhost;Port=5432;Database=SmartDocsAI_Db;Username=postgres;Password=PAROLA" --project backend\SmartDocsAI.API
+```
 
-Bilgisayar Mühendisliği Öğrencisi
+## Backend'i çalıştırma
 
-Staj Projesi (2026)
+PostgreSQL, Qdrant ve Ollama servislerini başlattıktan sonra:
 
----
+```powershell
+dotnet run --project backend\SmartDocsAI.API
+```
 
-# 📌 Proje Durumu
+Uygulama açılırken migration'lar otomatik uygulanır. Development ortamında
+veritabanında hiç kullanıcı yoksa user-secrets içindeki parola ile
+`admin@smartdocs.ai` hesabı oluşturulur.
 
-🚧 Geliştirme Devam Ediyor
+## Frontend'i çalıştırma
 
-Bu proje aktif olarak geliştirilmektedir ve MVP sürümü tamamlandıktan sonra yeni özelliklerle geliştirilmeye devam edecektir.
+```powershell
+cd frontend
+npm install
+npm run dev
+```
+
+Vite `http://localhost:5173` adresinde açılır ve `/api` isteklerini varsayılan
+olarak `http://localhost:5129` adresine yönlendirir.
+
+Üretim çıktısı için:
+
+```powershell
+npm run build
+```
+
+Backend, `frontend/dist` mevcutsa arayüzü aynı uygulama üzerinden sunar.
+
+## Temel API uçları
+
+| Metot | Adres | Açıklama |
+| --- | --- | --- |
+| POST | `/api/auth/register` | Kullanıcı oluşturur |
+| POST | `/api/auth/login` | JWT üretir |
+| GET | `/api/documents` | Kullanıcının belgelerini listeler |
+| POST | `/api/documents/upload` | PDF yükler ve indeksler |
+| DELETE | `/api/documents/{id}` | Dosya, PostgreSQL ve Qdrant verilerini siler |
+| POST | `/api/chat` | Belgelere dayalı cevap üretir |
+| GET | `/api/chat/history` | Sohbet geçmişini getirir |
+| GET | `/api/chat/{conversationId}` | Tek sohbeti getirir |
+
+## Proje yapısı
+
+```text
+smartdocs-ai/
+├── backend/SmartDocsAI.API/   ASP.NET Core API
+├── frontend/                  React + TypeScript arayüz
+├── database/                  PostgreSQL migration SQL'i ve arşiv
+├── docs/                      Analiz ve tasarım belgeleri
+└── notes/                     Proje notları
+```
+
+## Durum
+
+Proje aktif geliştirme aşamasındadır. Temel MVP akışı uygulanmıştır; otomatik
+testler, Docker Compose ve üretim gözlemlenebilirliği sonraki ana çalışmalardır.

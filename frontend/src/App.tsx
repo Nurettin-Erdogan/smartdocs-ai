@@ -204,6 +204,25 @@ function App() {
     setNotice('Çıkış yapıldı.');
   };
 
+  const handleSelectConversation = (conversation: ChatConversation) => {
+    const latestMessage = conversation.messages[conversation.messages.length - 1];
+
+    setSelectedConversationId(conversation.conversationId);
+    setAnswer(latestMessage?.answer ?? '');
+    setSources([]);
+    setError('');
+    setNotice('');
+  };
+
+  const handleNewConversation = () => {
+    setSelectedConversationId(null);
+    setAnswer('');
+    setSources([]);
+    setQuestion('');
+    setError('');
+    setNotice('Yeni sohbet başlatıldı.');
+  };
+
   const activeConversation = history.find((item) => item.conversationId === selectedConversationId) ?? history[0];
 
   if (!token || !user) {
@@ -294,7 +313,9 @@ function App() {
         <div className="panel-subsection history-list">
           <div className="section-head">
             <h3>Sohbet geçmişi</h3>
-            <span>{history.length}</span>
+            <button type="button" className="ghost-btn" onClick={handleNewConversation}>
+              Yeni · {history.length}
+            </button>
           </div>
           <div className="scroll-list">
             {history.length === 0 && <p className="muted">Henüz sohbet yok.</p>}
@@ -303,7 +324,7 @@ function App() {
                 key={conversation.conversationId}
                 type="button"
                 className={`history-item ${selectedConversationId === conversation.conversationId ? 'active' : ''}`}
-                onClick={() => setSelectedConversationId(conversation.conversationId)}
+                onClick={() => handleSelectConversation(conversation)}
               >
                 <strong>Sohbet #{conversation.conversationId}</strong>
                 <span>{formatDate(conversation.createdAt)}</span>
@@ -380,7 +401,7 @@ function App() {
             <div className="source-list">
               {sources.map((source) => (
                 <article key={`${source.documentId}-${source.chunkIndex}-${source.pageNumber}`} className="source-card">
-                  <strong>Belge {source.documentId} · Sayfa {source.pageNumber}</strong>
+                  <strong>{source.title ?? `Belge ${source.documentId}`} · Sayfa {source.pageNumber}</strong>
                   <p>{source.content}</p>
                   <small>Parça {source.chunkIndex} · Skor {source.score.toFixed(3)}</small>
                 </article>
