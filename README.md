@@ -94,6 +94,11 @@ SQL Server uygulamanın klasik verilerini saklamak için kullanılacaktır.
 - Yükleme tarihleri
 - Sohbet kayıtları
 
+Geliştirme ortamında uygulama ilk kez açıldığında örnek bir admin kullanıcı otomatik oluşturulur.
+
+- E-posta: `admin@smartdocs.ai`
+- Şifre: `Admin123!`
+
 ---
 
 ## 🧠 Artificial Intelligence
@@ -244,6 +249,16 @@ smartdocs-ai
 - [ ] React Arayüzü
 - [ ] Docker Compose
 - [ ] Yayınlama
+
+---
+
+# 🗄️ Veritabanı Notu
+
+Backend uygulaması açıldığında EF Core migration'ları otomatik uygulanır.
+
+Bu yüzden local development sırasında veritabanı yoksa uygulama ilk çalışmada şemayı oluşturur.
+
+İstersen manuel kurulum için [database/SmartDocsAI_Init.sql](database/SmartDocsAI_Init.sql) dosyasını da kullanabilirsin.
 
 ---
 

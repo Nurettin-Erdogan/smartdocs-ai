@@ -1,5 +1,20 @@
 # SmartDocs AI Database Design
 
+## Kurulum Dosyası
+
+Veritabanını hızlıca ayağa kaldırmak için [database/SmartDocsAI_Init.sql](../database/SmartDocsAI_Init.sql) dosyasını çalıştırabilirsiniz.
+
+Bu script aşağıdaki yapıyı oluşturur:
+
+- `Roles`
+- `Users`
+- `Documents`
+- `Chunks`
+- `Conversations`
+- `Messages`
+
+Script ayrıca başlangıç rollerini ekler ve temel foreign key ile index yapılarını kurar.
+
 ## 1. Users
 
 Kullanıcı bilgileri

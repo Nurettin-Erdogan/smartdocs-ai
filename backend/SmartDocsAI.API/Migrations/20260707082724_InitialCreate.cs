@@ -26,6 +26,12 @@ namespace SmartDocsAI.API.Migrations
                     table.PrimaryKey("PK_Roles", x => x.Id);
                 });
 
+            migrationBuilder.CreateIndex(
+                name: "IX_Roles_Name",
+                table: "Roles",
+                column: "Name",
+                unique: true);
+
             migrationBuilder.CreateTable(
                 name: "Users",
                 columns: table => new
@@ -162,6 +168,12 @@ namespace SmartDocsAI.API.Migrations
                 name: "IX_Documents_UserId",
                 table: "Documents",
                 column: "UserId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Users_Email",
+                table: "Users",
+                column: "Email",
+                unique: true);
 
             migrationBuilder.CreateIndex(
                 name: "IX_Messages_ConversationId",

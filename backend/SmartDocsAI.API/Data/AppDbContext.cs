@@ -27,6 +27,14 @@ namespace SmartDocsAI.API.Data
                 .HasForeignKey(u => u.RoleId)
                 .OnDelete(DeleteBehavior.Restrict);
 
+            modelBuilder.Entity<User>()
+                .HasIndex(u => u.Email)
+                .IsUnique();
+
+            modelBuilder.Entity<Role>()
+                .HasIndex(r => r.Name)
+                .IsUnique();
+
             // Kullanıcı ve Belge ilişkisi (Cascade: Kullanıcı silinirse belgeleri de silinir)
             modelBuilder.Entity<Document>()
                 .HasOne(d => d.User)

@@ -158,6 +158,9 @@ namespace SmartDocsAI.API.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("Name")
+                        .IsUnique();
+
                     b.ToTable("Roles");
 
                     b.HasData(
@@ -207,6 +210,9 @@ namespace SmartDocsAI.API.Migrations
                         .HasColumnType("int");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("Email")
+                        .IsUnique();
 
                     b.HasIndex("RoleId");
 
