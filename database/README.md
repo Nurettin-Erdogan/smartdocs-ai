@@ -1,27 +1,43 @@
-# Database
+# SmartDocs AI veritabanı
 
-Bu klasör SmartDocs AI için SQL Server kurulum scriptini içerir.
+Bu projede PostgreSQL, uygulamanın kalıcı verilerini tutar; vektör arama verileri ise Qdrant'ta tutulur. Veritabanı şemasının tek kaynağı Entity Framework Core migration'larıdır.
 
-## Dosyalar
+## Şema
 
-- `SmartDocsAI_Init.sql`: Veritabanını, tabloları, foreign key'leri, index'leri ve başlangıç rollerini oluşturur.
+| Tablo | Amaç |
+| --- | --- |
+| `Roles` | Admin, Personel ve Misafir rolleri |
+| `Users` | Kullanıcı bilgileri ve parola hash'i |
+| `Documents` | Yüklenen PDF dosyalarının metaverisi |
+| `Chunks` | PDF'ten çıkarılan metin parçaları |
+| `Conversations` | Kullanıcı sohbet oturumları |
+| `Messages` | Soru-cevap geçmişi |
 
-## Kurulum
+Temel ilişkiler: `Role 1-N User`, `User 1-N Document`, `Document 1-N Chunk`, `User 1-N Conversation`, `Conversation 1-N Message`.
 
-1. SQL Server Management Studio veya Azure Data Studio açın.
-2. `SmartDocsAI_Init.sql` dosyasını çalıştırın.
-3. Script `SmartDocsAI_Db` veritabanını oluşturur.
-4. Uygulama tarafında `backend/SmartDocsAI.API/appsettings.json` içindeki connection string aynı veritabanını hedefler.
+## Önerilen geliştirme kurulumu
 
-## Oluşan Yapı
+1. PostgreSQL servisinin çalıştığından emin olun.
+2. PostgreSQL parolasını proje klasörüne yazmadan kullanıcı gizli ayarlarına ekleyin.
+3. `backend` klasöründe uygulamayı çalıştırın: `dotnet run --project SmartDocsAI.API`.
 
-- Roles
-- Users
-- Documents
-- Chunks
-- Conversations
-- Messages
+Uygulama açılırken `DatabaseSeeder` otomatik olarak `Database.MigrateAsync()` çağırır. Böylece bekleyen migration'lar uygulanır, roller eklenir ve geliştirme ortamında örnek admin kullanıcısı oluşturulur.
 
-## Not
+## Manuel SQL kurulumu
 
-Bu proje EF Core migration da kullanıyor. Script hızlı kurulum içindir; migration ise kod tarafındaki model ile veritabanını senkron tutar.
+PostgreSQL için veritabanını Entity Framework Core ile oluşturmak önerilir. `SmartDocsAI_Init.sql`, PostgreSQL için üretilmiş idempotent migration betiğidir; doğrudan `psql` veya pgAdmin Query Tool'da çalıştırılabilir. Betik, veritabanının önceden oluşturulmuş olmasını bekler.
+
+- `dotnet ef database update` komutu `SmartDocsAI_Db` veritabanını ve tabloları oluşturur.
+- `__EFMigrationsHistory` tablosu uygulanmış migration'ları kaydeder; bu sayede uygulama yeniden açıldığında EF aynı tabloları tekrar oluşturmaya çalışmaz.
+
+## Şema değiştiğinde
+
+Model değişikliğinden sonra `backend` klasöründe sırasıyla şunlar yapılır:
+
+```powershell
+dotnet ef migrations add AciklayiciMigrationAdi --project .\SmartDocsAI.API
+dotnet ef database update --project .\SmartDocsAI.API
+dotnet ef migrations script --idempotent --project .\SmartDocsAI.API --output ..\database\SmartDocsAI_Init.sql
+```
+
+Bu projede eklenen indeksler, kullanıcının belge ve sohbet geçmişini sıralarken performans sağlar. Ayrıca `(DocumentId, ChunkIndex)` benzersiz indeksi aynı PDF parçasının iki kez kaydedilmesini engeller.

@@ -1,0 +1,91 @@
+﻿using Microsoft.EntityFrameworkCore.Migrations;
+
+#nullable disable
+
+namespace SmartDocsAI.API.Migrations
+{
+    /// <inheritdoc />
+    public partial class ImproveDatabaseIndexes : Migration
+    {
+        /// <inheritdoc />
+        protected override void Up(MigrationBuilder migrationBuilder)
+        {
+            migrationBuilder.DropIndex(
+                name: "IX_Messages_ConversationId",
+                table: "Messages");
+
+            migrationBuilder.DropIndex(
+                name: "IX_Documents_UserId",
+                table: "Documents");
+
+            migrationBuilder.DropIndex(
+                name: "IX_Conversations_UserId",
+                table: "Conversations");
+
+            migrationBuilder.DropIndex(
+                name: "IX_Chunks_DocumentId",
+                table: "Chunks");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Messages_ConversationId_CreatedAt",
+                table: "Messages",
+                columns: new[] { "ConversationId", "CreatedAt" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Documents_UserId_UploadDate",
+                table: "Documents",
+                columns: new[] { "UserId", "UploadDate" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Conversations_UserId_CreatedAt",
+                table: "Conversations",
+                columns: new[] { "UserId", "CreatedAt" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Chunks_DocumentId_ChunkIndex",
+                table: "Chunks",
+                columns: new[] { "DocumentId", "ChunkIndex" },
+                unique: true);
+        }
+
+        /// <inheritdoc />
+        protected override void Down(MigrationBuilder migrationBuilder)
+        {
+            migrationBuilder.DropIndex(
+                name: "IX_Messages_ConversationId_CreatedAt",
+                table: "Messages");
+
+            migrationBuilder.DropIndex(
+                name: "IX_Documents_UserId_UploadDate",
+                table: "Documents");
+
+            migrationBuilder.DropIndex(
+                name: "IX_Conversations_UserId_CreatedAt",
+                table: "Conversations");
+
+            migrationBuilder.DropIndex(
+                name: "IX_Chunks_DocumentId_ChunkIndex",
+                table: "Chunks");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Messages_ConversationId",
+                table: "Messages",
+                column: "ConversationId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Documents_UserId",
+                table: "Documents",
+                column: "UserId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Conversations_UserId",
+                table: "Conversations",
+                column: "UserId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Chunks_DocumentId",
+                table: "Chunks",
+                column: "DocumentId");
+        }
+    }
+}
