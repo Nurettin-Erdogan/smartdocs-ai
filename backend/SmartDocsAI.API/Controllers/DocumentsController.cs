@@ -19,6 +19,7 @@ namespace SmartDocsAI.API.Controllers
     [Route("api/[controller]")]
     public class DocumentsController : ControllerBase
     {
+        private const long MaxFileSize = 20 * 1024 * 1024;
         private readonly AppDbContext _context;
         private readonly IWebHostEnvironment _env;
         private readonly IDocumentProcessor _documentProcessor;
@@ -45,11 +46,22 @@ namespace SmartDocsAI.API.Controllers
                 return BadRequest(new { Message = "Lütfen bir dosya seçin." });
             }
 
+            if (file.Length > MaxFileSize)
+            {
+                return BadRequest(new { Message = "PDF dosyası en fazla 20 MB olabilir." });
+            }
+
             // Sadece PDF formatına izin veriyoruz.
             var extension = Path.GetExtension(file.FileName).ToLower();
             if (extension != ".pdf")
             {
                 return BadRequest(new { Message = "Yalnızca PDF belgeleri yüklenebilir." });
+            }
+
+
+            if (!await HasPdfSignatureAsync(file))
+            {
+                return BadRequest(new { Message = "Dosya içeriği geçerli bir PDF değil." });
             }
 
             // JWT Token içerisinden NameIdentifier (Kullanıcı ID) bilgisini çıkarıyoruz.
@@ -68,7 +80,21 @@ namespace SmartDocsAI.API.Controllers
             }
 
             // Dosya çakışmalarını önlemek için benzersiz bir dosya adı (GUID ile) üretiyoruz.
-            var uniqueFileName = $"{Guid.NewGuid()}_{file.FileName}";
+            var safeOriginalFileName = Path.GetFileName(file.FileName);
+            var uniqueFileName = $"{Guid.NewGuid():N}.pdf";
+
+            var title = Path.GetFileNameWithoutExtension(safeOriginalFileName).Trim();
+
+            if (string.IsNullOrWhiteSpace(title))
+            {
+                return BadRequest(new { Message = "PDF dosyasının geçerli bir adı olmalıdır." });
+            }
+
+            if (title.Length > 255)
+            {
+                title = title[..255];
+            }
+
             var filePath = Path.Combine(uploadsFolder, uniqueFileName);
 
             // Dosyayı sunucuya kaydediyoruz.
@@ -81,7 +107,7 @@ namespace SmartDocsAI.API.Controllers
             var document = new Document
             {
                 UserId = userId,
-                Title = Path.GetFileNameWithoutExtension(file.FileName),
+                Title = title,
                 FileName = uniqueFileName,
                 FileType = extension,
                 FilePath = filePath,
@@ -202,6 +228,24 @@ namespace SmartDocsAI.API.Controllers
             await _context.SaveChangesAsync();
 
             return Ok(new { Message = "Belge başarıyla silindi." });
+
+
+
+        }
+
+        private static async Task<bool> HasPdfSignatureAsync(IFormFile file)
+        {
+            var signature = new byte[5];
+
+            await using var stream = file.OpenReadStream();
+            var bytesRead = await stream.ReadAsync(signature.AsMemory());
+
+            return bytesRead == signature.Length
+                && signature[0] == 0x25
+                && signature[1] == 0x50
+                && signature[2] == 0x44
+                && signature[3] == 0x46
+                && signature[4] == 0x2D;
         }
     }
 }
