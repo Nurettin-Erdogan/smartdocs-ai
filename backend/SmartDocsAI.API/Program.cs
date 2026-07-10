@@ -1,3 +1,7 @@
+// Uygulamanın başlangıç noktasıdır.
+// SQL Server, Service, Controller ve JWT gibi yapılandırmaları hazırlar.
+// Sistemi çalıştırır.
+
 using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
@@ -21,7 +25,7 @@ builder.Services.AddCors(options =>
 });
 
 builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 
 // TokenService registration (Dependency Injection)
 builder.Services.AddScoped<ITokenService, TokenService>();

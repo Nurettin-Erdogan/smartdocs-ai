@@ -49,6 +49,16 @@ namespace SmartDocsAI.API.Data
                 .HasForeignKey(c => c.DocumentId)
                 .OnDelete(DeleteBehavior.Cascade);
 
+            // Bir belgedeki parça sıra numarası tekil olmalıdır. Aynı PDF yeniden
+            // işlense bile aynı sıradaki chunk'ın iki kez kaydedilmesini önler.
+            modelBuilder.Entity<Chunk>()
+                .HasIndex(c => new { c.DocumentId, c.ChunkIndex })
+                .IsUnique();
+
+            // Kullanıcının belgelerini yükleme tarihine göre listeleme sorgusunu hızlandırır.
+            modelBuilder.Entity<Document>()
+                .HasIndex(d => new { d.UserId, d.UploadDate });
+
             // Kullanıcı ve Sohbet ilişkisi
             modelBuilder.Entity<Conversation>()
                 .HasOne(c => c.User)
@@ -56,12 +66,20 @@ namespace SmartDocsAI.API.Data
                 .HasForeignKey(c => c.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
 
+            // Sohbet geçmişi kullanıcı ve oluşturulma tarihine göre okunur.
+            modelBuilder.Entity<Conversation>()
+                .HasIndex(c => new { c.UserId, c.CreatedAt });
+
             // Sohbet ve Mesaj ilişkisi
             modelBuilder.Entity<Message>()
                 .HasOne(m => m.Conversation)
                 .WithMany(c => c.Messages)
                 .HasForeignKey(m => m.ConversationId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            // Bir sohbetin mesajları zaman sırasıyla gösterilir.
+            modelBuilder.Entity<Message>()
+                .HasIndex(m => new { m.ConversationId, m.CreatedAt });
 
             // Varsayılan Rollerin Veritabanına Eklenmesi (Seed Data)
             modelBuilder.Entity<Role>().HasData(
