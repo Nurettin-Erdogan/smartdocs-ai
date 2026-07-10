@@ -1,3 +1,12 @@
+// Kullanıcıların yüklediği PDF belgelerini temsil eden Entity'dir.
+// PostgreSQL'deki Documents tablosuna karşılık gelir.
+// Belgeye ait bilgiler burada tutulur.
+//PDF'nin kendisini temsil eder.
+//Kim yükledi?
+//Ne zaman yükledi?
+//Dosyanın adı ne?
+//Dosya nerede?
+
 using System.ComponentModel.DataAnnotations;
 
 namespace SmartDocsAI.API.Models

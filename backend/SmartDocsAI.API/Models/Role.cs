@@ -1,3 +1,9 @@
+// Sistemdeki kullanıcı rollerini temsil eden Entity'dir.
+// PostgreSQL'deki Roles tablosuna karşılık gelir.
+// Admin ve User gibi yetkiler burada tutulur.
+//Kullanıcı rollerini tutar.
+//Bir rolü birçok kullanıcı kullanabilir.
+
 using System.ComponentModel.DataAnnotations;
 
 namespace SmartDocsAI.API.Models

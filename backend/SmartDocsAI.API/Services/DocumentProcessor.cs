@@ -1,3 +1,7 @@
+// Yüklenen PDF'yi işler.
+// PDF'den metni çıkarır ve metni küçük parçalara ayırır.
+// Daha sonra embedding oluşturulacak yapıyı hazırlar.
+
 using UglyToad.PdfPig;
 using SmartDocsAI.API.Interfaces;
 using SmartDocsAI.API.Models;

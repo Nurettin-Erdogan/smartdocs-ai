@@ -1,3 +1,7 @@
+// Entity Framework ile PostgreSQL arasındaki bağlantıyı sağlayan merkez sınıftır.
+// Veritabanındaki tablolar ve tablolar arasındaki ilişkiler burada tanımlanır.
+// Tüm veritabanı işlemleri bu sınıf üzerinden gerçekleştirilir.
+
 using Microsoft.EntityFrameworkCore;
 using SmartDocsAI.API.Models;
 

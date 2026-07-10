@@ -1,3 +1,12 @@
+// Sistemdeki kullanıcıları temsil eden Entity'dir.
+// PostgreSQL'deki Users tablosuna karşılık gelir.
+// Kullanıcı bilgileri ve ilişkileri burada tutulur.
+//Kullanıcı bilgilerini tutar.
+//Kullanıcının rolünü bilir.
+//Kullanıcının yüklediği belgeleri bilir.
+//Kullanıcının sohbetlerini bilir.
+
+
 using System.ComponentModel.DataAnnotations;
 
 namespace SmartDocsAI.API.Models

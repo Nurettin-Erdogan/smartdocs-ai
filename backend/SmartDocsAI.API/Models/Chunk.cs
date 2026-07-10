@@ -1,3 +1,8 @@
+// PDF'den çıkarılan metin parçalarını temsil eden Entity'dir.
+// PostgreSQL'deki Chunks tablosuna karşılık gelir.
+// Her Chunk bir belgeye aittir.
+
+
 using System.ComponentModel.DataAnnotations;
 
 namespace SmartDocsAI.API.Models

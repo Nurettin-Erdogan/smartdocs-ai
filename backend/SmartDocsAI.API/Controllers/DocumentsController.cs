@@ -1,3 +1,8 @@
+// Frontend'den gelen belge (PDF) isteklerini karşılar.
+// Dosya yükleme, listeleme ve silme işlemlerini yönetir.
+// Gerekli işlemler için ilgili Service'leri kullanır.
+
+
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;

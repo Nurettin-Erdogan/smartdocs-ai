@@ -1,3 +1,8 @@
+// Sohbet içerisindeki mesajları temsil eden Entity'dir.
+// PostgreSQL'deki Messages tablosuna karşılık gelir.
+// Kullanıcı ve yapay zekanın mesajları burada tutulur.
+//Conversation'ın içindeki mesajları tutar.
+
 using System.ComponentModel.DataAnnotations;
 
 namespace SmartDocsAI.API.Models
