@@ -96,75 +96,89 @@ namespace SmartDocsAI.API.Controllers
             }
 
             var filePath = Path.Combine(uploadsFolder, uniqueFileName);
+            await using var transaction = await _context.Database.BeginTransactionAsync();
+            var uploadCommitted = false;
 
-            // Dosyayı sunucuya kaydediyoruz.
-            using (var stream = new FileStream(filePath, FileMode.Create))
+            try
             {
-                await file.CopyToAsync(stream);
-            }
-
-            // Veritabanı modelini oluşturup kaydediyoruz.
-            var document = new Document
-            {
-                UserId = userId,
-                Title = title,
-                FileName = uniqueFileName,
-                FileType = extension,
-                FilePath = filePath,
-                FileSize = file.Length,
-                UploadDate = DateTime.UtcNow
-            };
-
-            _context.Documents.Add(document);
-            await _context.SaveChangesAsync();
-
-            // PDF dosyasını okuyoruz ve metnini anlamsal parçalara (Chunks) bölüyoruz.
-            var chunks = await _documentProcessor.ProcessPdfAsync(document);
-
-            // Bölünen parçaları veritabanımıza (SQL Server) ekliyoruz.
-            _context.Chunks.AddRange(chunks);
-            await _context.SaveChangesAsync();
-
-            var indexingStatus = "Chunklar veritabanına kaydedildi.";
-
-            if (chunks.Count > 0)
-            {
-                try
+                // Dosyayı sunucuya kaydediyoruz.
+                using (var stream = new FileStream(filePath, FileMode.Create))
                 {
-                    var embeddings = await Task.WhenAll(chunks.Select(chunk => _ollamaService.GetEmbeddingAsync(chunk.Content)));
-                    await _qdrantService.SaveChunksAsync(chunks, embeddings.ToList());
-                    indexingStatus = "Chunklar Qdrant'a kaydedildi.";
+                    await file.CopyToAsync(stream);
                 }
-                catch
+
+                // Veritabanı modelini oluşturup kaydediyoruz.
+                var document = new Document
                 {
-                    indexingStatus = "Belge kaydedildi, ancak vektör indeksleme tamamlanamadı.";
+                    UserId = userId,
+                    Title = title,
+                    FileName = uniqueFileName,
+                    FileType = extension,
+                    FilePath = filePath,
+                    FileSize = file.Length,
+                    UploadDate = DateTime.UtcNow
+                };
+
+                _context.Documents.Add(document);
+                await _context.SaveChangesAsync();
+
+                // PDF dosyasını okuyoruz ve metnini anlamsal parçalara (Chunks) bölüyoruz.
+                var chunks = await _documentProcessor.ProcessPdfAsync(document);
+
+                // Bölünen parçaları PostgreSQL'e ekliyoruz.
+                _context.Chunks.AddRange(chunks);
+                await _context.SaveChangesAsync();
+                await transaction.CommitAsync();
+                uploadCommitted = true;
+
+                var indexingStatus = "Chunklar veritabanına kaydedildi.";
+
+                if (chunks.Count > 0)
+                {
+                    try
+                    {
+                        var embeddings = await Task.WhenAll(chunks.Select(chunk => _ollamaService.GetEmbeddingAsync(chunk.Content)));
+                        await _qdrantService.SaveChunksAsync(chunks, embeddings.ToList());
+                        indexingStatus = "Chunklar Qdrant'a kaydedildi.";
+                    }
+                    catch
+                    {
+                        indexingStatus = "Belge kaydedildi, ancak vektör indeksleme tamamlanamadı.";
+                    }
+                }
+                else
+                {
+                    indexingStatus = "Belgeden işlenecek metin çıkarılamadı.";
+                }
+
+                var documentDto = new DocumentDto
+                {
+                    Id = document.Id,
+                    Title = document.Title,
+                    FileName = document.FileName,
+                    FileType = document.FileType,
+                    FileSize = document.FileSize,
+                    UploadDate = document.UploadDate
+                };
+
+                return Ok(new
+                {
+                    documentDto.Id,
+                    documentDto.Title,
+                    documentDto.FileName,
+                    documentDto.FileType,
+                    documentDto.FileSize,
+                    documentDto.UploadDate,
+                    IndexingStatus = indexingStatus
+                });
+            }
+            finally
+            {
+                if (!uploadCommitted && System.IO.File.Exists(filePath))
+                {
+                    System.IO.File.Delete(filePath);
                 }
             }
-            else
-            {
-                indexingStatus = "Belgeden işlenecek metin çıkarılamadı.";
-            }
-
-            var documentDto = new DocumentDto
-            {
-                Id = document.Id,
-                Title = document.Title,
-                FileName = document.FileName,
-                FileType = document.FileType,
-                FileSize = document.FileSize,
-                UploadDate = document.UploadDate
-            };
-
-            return Ok(new
-            {
-                documentDto.Id,
-                documentDto.Title,
-                documentDto.FileName,
-                documentDto.FileType,
-                documentDto.FileSize,
-                documentDto.UploadDate,
-                IndexingStatus = indexingStatus
-            });
         }
 
         /// <summary>
