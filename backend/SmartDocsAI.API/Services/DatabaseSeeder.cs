@@ -1,3 +1,6 @@
+// Uygulama ilk çalıştığında başlangıç verilerini ekler.
+// Varsayılan roller ve admin kullanıcısını oluşturur.
+
 using Microsoft.EntityFrameworkCore;
 using SmartDocsAI.API.Data;
 using SmartDocsAI.API.Helpers;
@@ -23,8 +26,9 @@ namespace SmartDocsAI.API.Services
 
             var adminName = configuration["SeedData:AdminFullName"] ?? "SmartDocs Admin";
             var adminEmail = configuration["SeedData:AdminEmail"] ?? "admin@smartdocs.ai";
-            var adminPassword = configuration["SeedData:AdminPassword"] ?? "Admin123!";
-
+            var adminPassword = configuration["SeedData:AdminPassword"]
+                ?? throw new InvalidOperationException(
+                    "SeedData:AdminPassword bulunamadı. User-secrets veya ortam değişkeni ile tanımlayın.");
             context.Users.Add(new User
             {
                 FullName = adminName,
