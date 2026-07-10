@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using SmartDocsAI.API.Data;
 using SmartDocsAI.API.DTOs;
@@ -10,6 +11,7 @@ namespace SmartDocsAI.API.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
+    [EnableRateLimiting("AuthPolicy")]
     public class AuthController : ControllerBase
     {
         private readonly AppDbContext _context;
@@ -28,8 +30,11 @@ namespace SmartDocsAI.API.Controllers
         [HttpPost("register")]
         public async Task<IActionResult> Register(RegisterDto registerDto)
         {
+            var normalizedEmail = registerDto.Email.Trim().ToLowerInvariant();
+            var normalizedFullName = registerDto.FullName.Trim();
+
             // E-posta adresinin sistemde eşsiz olup olmadığını kontrol ediyoruz.
-            if (await _context.Users.AnyAsync(u => u.Email == registerDto.Email.ToLower()))
+            if (await _context.Users.AnyAsync(u => u.Email == normalizedEmail))
             {
                 return BadRequest(new { Message = "Bu e-posta adresi zaten kullanımda." });
             }
@@ -37,8 +42,8 @@ namespace SmartDocsAI.API.Controllers
             // Yeni kullanıcı modelini dolduruyoruz (Şifreyi hashleyerek!)
             var user = new User
             {
-                FullName = registerDto.FullName,
-                Email = registerDto.Email.ToLower(),
+                FullName = normalizedFullName,
+                Email = normalizedEmail,
                 PasswordHash = PasswordHasher.HashPassword(registerDto.Password),
                 RoleId = 2, // Varsayılan Rol: Personel (Seed verilerimizde ID 2)
                 CreatedAt = DateTime.UtcNow
@@ -67,10 +72,12 @@ namespace SmartDocsAI.API.Controllers
         [HttpPost("login")]
         public async Task<IActionResult> Login(LoginDto loginDto)
         {
+            var normalizedEmail = loginDto.Email.Trim().ToLowerInvariant();
+
             // Kullanıcıyı veritabanında e-postasıyla arıyoruz ve Rol ilişkisini de dahil ediyoruz (Include).
             var user = await _context.Users
                 .Include(u => u.Role)
-                .FirstOrDefaultAsync(u => u.Email == loginDto.Email.ToLower());
+                .FirstOrDefaultAsync(u => u.Email == normalizedEmail);
 
             // Kullanıcı bulunamadıysa yetkisiz hatası dönüyoruz.
             if (user == null)

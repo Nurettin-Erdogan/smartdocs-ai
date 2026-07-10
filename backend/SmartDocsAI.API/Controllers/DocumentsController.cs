@@ -20,19 +20,28 @@ namespace SmartDocsAI.API.Controllers
     public class DocumentsController : ControllerBase
     {
         private const long MaxFileSize = 20 * 1024 * 1024;
+        private const int EmbeddingBatchSize = 4;
         private readonly AppDbContext _context;
         private readonly IWebHostEnvironment _env;
         private readonly IDocumentProcessor _documentProcessor;
         private readonly IOllamaService _ollamaService;
         private readonly IQdrantService _qdrantService;
+        private readonly ILogger<DocumentsController> _logger;
 
-        public DocumentsController(AppDbContext context, IWebHostEnvironment env, IDocumentProcessor documentProcessor, IOllamaService ollamaService, IQdrantService qdrantService)
+        public DocumentsController(
+            AppDbContext context,
+            IWebHostEnvironment env,
+            IDocumentProcessor documentProcessor,
+            IOllamaService ollamaService,
+            IQdrantService qdrantService,
+            ILogger<DocumentsController> logger)
         {
             _context = context;
             _env = env;
             _documentProcessor = documentProcessor;
             _ollamaService = ollamaService;
             _qdrantService = qdrantService;
+            _logger = logger;
         }
 
         /// <summary>
@@ -70,7 +79,10 @@ namespace SmartDocsAI.API.Controllers
             {
                 return Unauthorized(new { Message = "Kullanıcı oturumu geçersiz." });
             }
-            int userId = int.Parse(userIdClaim);
+            if (!int.TryParse(userIdClaim, out var userId))
+            {
+                return Unauthorized(new { Message = "Kullanıcı oturumu geçersiz." });
+            }
 
             // Sunucuda dosyaların kaydedileceği klasörü belirliyoruz (Uploads/)
             var uploadsFolder = Path.Combine(_env.ContentRootPath, "Uploads");
@@ -137,12 +149,13 @@ namespace SmartDocsAI.API.Controllers
                 {
                     try
                     {
-                        var embeddings = await Task.WhenAll(chunks.Select(chunk => _ollamaService.GetEmbeddingAsync(chunk.Content)));
-                        await _qdrantService.SaveChunksAsync(chunks, embeddings.ToList());
+                        var embeddings = await GenerateEmbeddingsInBatchesAsync(chunks);
+                        await _qdrantService.SaveChunksAsync(chunks, embeddings);
                         indexingStatus = "Chunklar Qdrant'a kaydedildi.";
                     }
-                    catch
+                    catch (Exception exception)
                     {
+                        _logger.LogError(exception, "Belge {DocumentId} Qdrant'a indekslenemedi.", document.Id);
                         indexingStatus = "Belge kaydedildi, ancak vektör indeksleme tamamlanamadı.";
                     }
                 }
@@ -192,10 +205,14 @@ namespace SmartDocsAI.API.Controllers
             {
                 return Unauthorized();
             }
-            int userId = int.Parse(userIdClaim);
+            if (!int.TryParse(userIdClaim, out var userId))
+            {
+                return Unauthorized(new { Message = "Kullanıcı oturumu geçersiz." });
+            }
 
             var documents = await _context.Documents
                 .Where(d => d.UserId == userId)
+                .OrderByDescending(d => d.UploadDate)
                 .Select(d => new DocumentDto
                 {
                     Id = d.Id,
@@ -221,7 +238,10 @@ namespace SmartDocsAI.API.Controllers
             {
                 return Unauthorized();
             }
-            int userId = int.Parse(userIdClaim);
+            if (!int.TryParse(userIdClaim, out var userId))
+            {
+                return Unauthorized(new { Message = "Kullanıcı oturumu geçersiz." });
+            }
 
             // Silinecek belgeyi ve o belgenin giriş yapan kullanıcıya ait olup olmadığını sorguluyoruz.
             var document = await _context.Documents
@@ -236,8 +256,9 @@ namespace SmartDocsAI.API.Controllers
             {
                 await _qdrantService.DeleteDocumentChunksAsync(document.Id);
             }
-            catch (HttpRequestException)
+            catch (HttpRequestException exception)
             {
+                _logger.LogError(exception, "Belge {DocumentId} için Qdrant temizliği başarısız oldu.", document.Id);
                 return StatusCode(
                     StatusCodes.Status503ServiceUnavailable,
                     new { Message = "Belge şu anda silinemiyor. Qdrant servisine ulaşılamadı." });
@@ -253,9 +274,21 @@ namespace SmartDocsAI.API.Controllers
             await _context.SaveChangesAsync();
 
             return Ok(new { Message = "Belge başarıyla silindi." });
+        }
 
+        private async Task<List<float[]>> GenerateEmbeddingsInBatchesAsync(List<Chunk> chunks)
+        {
+            var embeddings = new List<float[]>(chunks.Count);
 
+            foreach (var batch in chunks.Chunk(EmbeddingBatchSize))
+            {
+                var batchEmbeddings = await Task.WhenAll(
+                    batch.Select(chunk => _ollamaService.GetEmbeddingAsync(chunk.Content)));
 
+                embeddings.AddRange(batchEmbeddings);
+            }
+
+            return embeddings;
         }
 
         private static async Task<bool> HasPdfSignatureAsync(IFormFile file)
@@ -263,7 +296,10 @@ namespace SmartDocsAI.API.Controllers
             var signature = new byte[5];
 
             await using var stream = file.OpenReadStream();
-            var bytesRead = await stream.ReadAsync(signature.AsMemory());
+            var bytesRead = await stream.ReadAtLeastAsync(
+                signature,
+                signature.Length,
+                throwOnEndOfStream: false);
 
             return bytesRead == signature.Length
                 && signature[0] == 0x25

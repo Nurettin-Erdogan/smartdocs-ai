@@ -14,7 +14,7 @@ namespace SmartDocsAI.API.DTOs
         public string Email { get; set; } = string.Empty;
 
         [Required(ErrorMessage = "Şifre alanı zorunludur.")]
-        [MinLength(6, ErrorMessage = "Şifre en az 6 karakter olmalıdır.")]
+        [StringLength(128, MinimumLength = 8, ErrorMessage = "Şifre 8-128 karakter arasında olmalıdır.")]
         public string Password { get; set; } = string.Empty;
     }
 }

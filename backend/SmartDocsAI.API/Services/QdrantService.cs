@@ -45,6 +45,11 @@ namespace SmartDocsAI.API.Services
                 return;
             }
 
+            if (response.StatusCode != System.Net.HttpStatusCode.NotFound)
+            {
+                response.EnsureSuccessStatusCode();
+            }
+
             // Koleksiyon yoksa, PUT isteği ile oluşturuyoruz.
             var createRequest = new
             {
@@ -100,15 +105,19 @@ namespace SmartDocsAI.API.Services
 
             // Qdrant'a toplu ekleme (Upsert) isteği atıyoruz.
             var response = await _httpClient.PutAsJsonAsync($"/collections/{_collectionName}/points?wait=true", upsertRequest);
-
-
             response.EnsureSuccessStatusCode();
         }
+
         public async Task DeleteDocumentChunksAsync(int documentId)
         {
+            var collectionResponse = await _httpClient.GetAsync($"/collections/{_collectionName}");
 
-            await CreateCollectionIfNotExistsAsync();
+            if (collectionResponse.StatusCode == System.Net.HttpStatusCode.NotFound)
+            {
+                return;
+            }
 
+            collectionResponse.EnsureSuccessStatusCode();
 
             var deleteRequest = new
             {
@@ -116,14 +125,14 @@ namespace SmartDocsAI.API.Services
                 {
                     must = new object[]
                     {
-                new
-                {
-                    key = "documentId",
-                    match = new
-                    {
-                        value = documentId
-                    }
-                }
+                        new
+                        {
+                            key = "documentId",
+                            match = new
+                            {
+                                value = documentId
+                            }
+                        }
                     }
                 }
             };
@@ -134,6 +143,7 @@ namespace SmartDocsAI.API.Services
 
             response.EnsureSuccessStatusCode();
         }
+
         public async Task<List<QdrantSearchResult>> SearchSimilarChunksAsync(float[] queryVector, int limit = 3, List<int>? documentIds = null)
         {
             object searchRequest;
@@ -173,8 +183,6 @@ namespace SmartDocsAI.API.Services
 
             // Qdrant /collections/{name}/points/search ucuna arama isteği atıyoruz.
             var response = await _httpClient.PostAsJsonAsync($"/collections/{_collectionName}/points/search", searchRequest);
-
-
             response.EnsureSuccessStatusCode();
             var responseString = await response.Content.ReadAsStringAsync();
             var searchResponse = JsonSerializer.Deserialize<QdrantSearchResponse>(responseString);
