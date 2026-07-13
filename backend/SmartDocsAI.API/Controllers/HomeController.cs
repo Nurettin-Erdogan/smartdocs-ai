@@ -1,44 +1,17 @@
-        // HomeController, backend uygulamasının çalışıp çalışmadığını kontrol etmek için kullanılan basit bir controller’dır.
+using Microsoft.AspNetCore.Mvc;
 
-        //ASP.NET Core’un controller ve API özelliklerini kullanabilmemizi sağlar. HomeController’ın ihtiyaç duyduğu hazır API araçlarını dosyaya tanıtır.
-        using Microsoft.AspNetCore.Mvc;      
-
-
-        // Bu sınıfın Controllers grubu içerisinde bulunduğunu belirtir.
-        // Namespace, sınıfları düzenli gruplamak ve isim karışıklığını önlemek için kullanılır.
-        namespace SmartDocsAI.API.Controllers   
+namespace SmartDocsAI.API.Controllers
+{
+    // Backend'in çalışıp çalışmadığını kontrol eden basit endpoint.
+    [ApiController]
+    [Route("api/[controller]")]
+    public class HomeController : ControllerBase
+    {
+        // GET /api/home isteğine 200 OK cevabı döndürür.
+        [HttpGet]
+        public IActionResult Get()
         {
-
-
-        // Bu sınıfın bir Web API controller'ı olduğunu ASP.NET Core'a bildirir.
-        // Gelen HTTP isteklerinin bu sınıfa yönlendirilmesini kolaylaştırır.
-        [ApiController]      
-
-        // Bu controller'ın temel adresini belirler.
-        // [controller] kısmı sınıfın isminden otomatik oluşturulur.
-        // HomeController isminden "Controller" çıkarılır ve adres /api/home olur.
-        [Route("api/[controller]")]
-
-
-
-        // HomeController isimli sınıfı oluşturuyoruz.
-        // ControllerBase'den kalıtım aldığı için Ok(), NotFound() ve BadRequest()
-        // gibi hazır HTTP cevap metotlarını kullanabilir.
-        public class HomeController : ControllerBase
-        {
-
-            // Altındaki metodun GET isteklerini karşılayacağını belirtir.
-            // Route ile birleştiğinde endpoint: GET /api/home olur.
-            [HttpGet]
-
-          // GET /api/home isteği geldiğinde çalışacak metottur.
-          // IActionResult, metodun bir HTTP cevabı döndüreceğini belirtir.
-         public IActionResult Get()
-         {
-             // İstemciye HTTP 200 OK cevabı gönderir.
-            // 200 OK, backend’in isteği başarıyla işlediğini söyleyen HTTP durum kodudur.
-            // Cevabın içinde backend'in çalıştığını belirten yazı bulunur.
             return Ok("SmartDocs AI Backend Çalışıyor!");
-         }
-         }
         }
+    }
+}
