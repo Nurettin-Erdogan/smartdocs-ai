@@ -1,0 +1,1 @@
+-  Asıl işlemleri yapan sınıflardır

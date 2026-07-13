@@ -20,11 +20,11 @@ namespace SmartDocsAI.API.Services
         {
             _httpClient = httpClient;
             _config = config;
-            
+
             // appsettings.json'dan Ollama bağlantı adresini alıyoruz.
             var baseUrl = _config["OllamaSettings:BaseUrl"] ?? "http://localhost:11434";
             _httpClient.BaseAddress = new Uri(baseUrl);
-            
+
             // Embedding ve yanıt üretimi için ayrı modeller kullanılabilir.
             _embeddingModel = _config["OllamaSettings:EmbeddingModel"] ?? "nomic-embed-text";
             _chatModel = _config["OllamaSettings:ChatModel"] ?? "llama3";
@@ -40,8 +40,8 @@ namespace SmartDocsAI.API.Services
 
             // İsteği JSON formatına serileştiriyoruz.
             var jsonContent = new StringContent(
-                JsonSerializer.Serialize(requestBody), 
-                Encoding.UTF8, 
+                JsonSerializer.Serialize(requestBody),
+                Encoding.UTF8,
                 "application/json"
             );
 
@@ -50,10 +50,10 @@ namespace SmartDocsAI.API.Services
             response.EnsureSuccessStatusCode();
 
             var responseString = await response.Content.ReadAsStringAsync();
-            
+
             // Gelen cevabı C# nesnesine dönüştürüyoruz (De-serileştirme).
             var result = JsonSerializer.Deserialize<OllamaEmbeddingResponse>(responseString);
-            
+
             return result?.Embedding ?? throw new Exception("Ollama'dan embedding alınamadı.");
         }
 

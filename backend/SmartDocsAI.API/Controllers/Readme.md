@@ -1,0 +1,1 @@
+- Gelen API isteklerini karşılar

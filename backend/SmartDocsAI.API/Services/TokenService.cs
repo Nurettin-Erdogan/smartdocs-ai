@@ -15,11 +15,11 @@ namespace SmartDocsAI.API.Services
         public TokenService(IConfiguration config)
         {
             _config = config;
-            
+
             // appsettings.json dosyasından TokenKey (şifreleme anahtarını) alıyoruz.
-            var tokenKey = _config["JwtSettings:TokenKey"] 
+            var tokenKey = _config["JwtSettings:TokenKey"]
                 ?? throw new ArgumentNullException("JwtSettings:TokenKey appsettings.json'da tanımlanmamış.");
-            
+
             // Anahtarı byte dizisine çevirip şifreleme sınıfına veriyoruz.
             _key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(tokenKey));
         }

@@ -28,7 +28,7 @@ namespace SmartDocsAI.API.Models
         public string PasswordHash { get; set; } = string.Empty;
 
         public int RoleId { get; set; }
-        
+
         // Navigation Properties (İlişkili Tablolar)
         public Role? Role { get; set; }
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
