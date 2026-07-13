@@ -1,6 +1,6 @@
-        // backend’in çalışıp çalışmadığını kontrol etmek için yazılmış en basit controller’dır.
+        // HomeController, backend uygulamasının çalışıp çalışmadığını kontrol etmek için kullanılan basit bir controller’dır.
 
-        //ASP.NET Core’un controller ve API özelliklerini kullanabilmemizi sağlar.
+        //ASP.NET Core’un controller ve API özelliklerini kullanabilmemizi sağlar. HomeController’ın ihtiyaç duyduğu hazır API araçlarını dosyaya tanıtır.
         using Microsoft.AspNetCore.Mvc;      
 
 
