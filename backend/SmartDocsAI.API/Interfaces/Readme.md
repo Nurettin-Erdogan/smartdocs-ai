@@ -1,0 +1,1 @@
+- Servislerin hangi işleri yapacağını tanımlar

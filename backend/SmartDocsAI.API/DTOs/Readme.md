@@ -1,0 +1,1 @@
+- Frontend ile taşınan verilerin şeklini belirler
