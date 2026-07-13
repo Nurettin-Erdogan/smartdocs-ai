@@ -128,7 +128,8 @@ namespace SmartDocsAI.API.Controllers
                     FileType = extension,
                     FilePath = filePath,
                     FileSize = file.Length,
-                    UploadDate = DateTime.UtcNow
+                    UploadDate = DateTime.UtcNow,
+                    IndexingStatus = "Pending"
                 };
 
                 _context.Documents.Add(document);
@@ -143,26 +144,29 @@ namespace SmartDocsAI.API.Controllers
                 await transaction.CommitAsync();
                 uploadCommitted = true;
 
-                var indexingStatus = "Chunklar veritabanına kaydedildi.";
-
                 if (chunks.Count > 0)
                 {
                     try
                     {
                         var embeddings = await GenerateEmbeddingsInBatchesAsync(chunks);
                         await _qdrantService.SaveChunksAsync(chunks, embeddings);
-                        indexingStatus = "Chunklar Qdrant'a kaydedildi.";
+                        document.IndexingStatus = "Ready";
+                        document.IndexingError = null;
                     }
                     catch (Exception exception)
                     {
                         _logger.LogError(exception, "Belge {DocumentId} Qdrant'a indekslenemedi.", document.Id);
-                        indexingStatus = "Belge kaydedildi, ancak vektör indeksleme tamamlanamadı.";
+                        document.IndexingStatus = "Failed";
+                        document.IndexingError = exception.GetBaseException().Message[..Math.Min(1000, exception.GetBaseException().Message.Length)];
                     }
                 }
                 else
                 {
-                    indexingStatus = "Belgeden işlenecek metin çıkarılamadı.";
+                    document.IndexingStatus = "NoContent";
+                    document.IndexingError = "Belgeden işlenecek metin çıkarılamadı.";
                 }
+
+                await _context.SaveChangesAsync();
 
                 var documentDto = new DocumentDto
                 {
@@ -171,7 +175,8 @@ namespace SmartDocsAI.API.Controllers
                     FileName = document.FileName,
                     FileType = document.FileType,
                     FileSize = document.FileSize,
-                    UploadDate = document.UploadDate
+                    UploadDate = document.UploadDate,
+                    IndexingStatus = document.IndexingStatus
                 };
 
                 return Ok(new
@@ -182,7 +187,7 @@ namespace SmartDocsAI.API.Controllers
                     documentDto.FileType,
                     documentDto.FileSize,
                     documentDto.UploadDate,
-                    IndexingStatus = indexingStatus
+                    IndexingStatus = document.IndexingStatus
                 });
             }
             finally
@@ -220,7 +225,8 @@ namespace SmartDocsAI.API.Controllers
                     FileName = d.FileName,
                     FileType = d.FileType,
                     FileSize = d.FileSize,
-                    UploadDate = d.UploadDate
+                    UploadDate = d.UploadDate,
+                    IndexingStatus = d.IndexingStatus
                 })
                 .ToListAsync();
 
@@ -256,12 +262,21 @@ namespace SmartDocsAI.API.Controllers
             {
                 await _qdrantService.DeleteDocumentChunksAsync(document.Id);
             }
-            catch (HttpRequestException exception)
+            catch (Exception exception) when (
+                exception is HttpRequestException or TaskCanceledException)
             {
-                _logger.LogError(exception, "Belge {DocumentId} için Qdrant temizliği başarısız oldu.", document.Id);
-                return StatusCode(
-                    StatusCodes.Status503ServiceUnavailable,
-                    new { Message = "Belge şu anda silinemiyor. Qdrant servisine ulaşılamadı." });
+                if (document.IndexingStatus == "Ready")
+                {
+                    _logger.LogError(exception, "Belge {DocumentId} için Qdrant temizliği başarısız oldu.", document.Id);
+                    return StatusCode(
+                        StatusCodes.Status503ServiceUnavailable,
+                        new { Message = "Belge şu anda silinemiyor. Qdrant servisine ulaşılamadı." });
+                }
+
+                _logger.LogWarning(
+                    exception,
+                    "İndekslenmemiş belge {DocumentId}, Qdrant kapalı olmasına rağmen yerel kayıtlardan siliniyor.",
+                    document.Id);
             }
 
             // Fiziksel dosyayı sunucudan siliyoruz.
@@ -274,6 +289,70 @@ namespace SmartDocsAI.API.Controllers
             await _context.SaveChangesAsync();
 
             return Ok(new { Message = "Belge başarıyla silindi." });
+        }
+
+        /// <summary>
+        /// Daha önce indekslenemeyen bir belgenin mevcut parçalarını yeniden Qdrant'a kaydeder.
+        /// </summary>
+        [HttpPost("{id}/reindex")]
+        public async Task<IActionResult> ReindexDocument(int id)
+        {
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (!int.TryParse(userIdClaim, out var userId))
+            {
+                return Unauthorized(new { Message = "Kullanıcı oturumu geçersiz." });
+            }
+
+            var document = await _context.Documents
+                .Include(d => d.Chunks)
+                .FirstOrDefaultAsync(d => d.Id == id && d.UserId == userId);
+
+            if (document == null)
+            {
+                return NotFound(new { Message = "Belge bulunamadı veya bu belge üzerinde işlem yapma yetkiniz yok." });
+            }
+
+            var chunks = document.Chunks
+                .OrderBy(chunk => chunk.ChunkIndex)
+                .ToList();
+
+            if (chunks.Count == 0)
+            {
+                document.IndexingStatus = "NoContent";
+                document.IndexingError = "Belgeden işlenecek metin çıkarılamadı.";
+                await _context.SaveChangesAsync();
+
+                return BadRequest(new { Message = document.IndexingError });
+            }
+
+            document.IndexingStatus = "Pending";
+            document.IndexingError = null;
+            await _context.SaveChangesAsync();
+
+            try
+            {
+                // Önce varsa yarım kalmış vektörleri temizleyerek çift kayıt oluşmasını önlüyoruz.
+                await _qdrantService.DeleteDocumentChunksAsync(document.Id);
+                var embeddings = await GenerateEmbeddingsInBatchesAsync(chunks);
+                await _qdrantService.SaveChunksAsync(chunks, embeddings);
+
+                document.IndexingStatus = "Ready";
+                document.IndexingError = null;
+                await _context.SaveChangesAsync();
+
+                return Ok(ToDocumentDto(document));
+            }
+            catch (Exception exception)
+            {
+                _logger.LogError(exception, "Belge {DocumentId} yeniden indekslenemedi.", document.Id);
+                document.IndexingStatus = "Failed";
+                document.IndexingError = LimitIndexingError(exception);
+                await _context.SaveChangesAsync();
+
+                return StatusCode(
+                    StatusCodes.Status503ServiceUnavailable,
+                    new { Message = "Belge indekslenemedi. Ollama ve Qdrant servislerini kontrol edin." });
+            }
         }
 
         private async Task<List<float[]>> GenerateEmbeddingsInBatchesAsync(List<Chunk> chunks)
@@ -289,6 +368,26 @@ namespace SmartDocsAI.API.Controllers
             }
 
             return embeddings;
+        }
+
+        private static DocumentDto ToDocumentDto(Document document)
+        {
+            return new DocumentDto
+            {
+                Id = document.Id,
+                Title = document.Title,
+                FileName = document.FileName,
+                FileType = document.FileType,
+                FileSize = document.FileSize,
+                UploadDate = document.UploadDate,
+                IndexingStatus = document.IndexingStatus
+            };
+        }
+
+        private static string LimitIndexingError(Exception exception)
+        {
+            var message = exception.GetBaseException().Message;
+            return message[..Math.Min(1000, message.Length)];
         }
 
         private static async Task<bool> HasPdfSignatureAsync(IFormFile file)

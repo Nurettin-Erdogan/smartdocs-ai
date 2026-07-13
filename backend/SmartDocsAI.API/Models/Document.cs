@@ -37,6 +37,13 @@ namespace SmartDocsAI.API.Models
 
         public long FileSize { get; set; }
 
+        [Required]
+        [MaxLength(20)]
+        public string IndexingStatus { get; set; } = "Pending";
+
+        [MaxLength(1000)]
+        public string? IndexingError { get; set; }
+
         public ICollection<Chunk> Chunks { get; set; } = new List<Chunk>();
     }
 }

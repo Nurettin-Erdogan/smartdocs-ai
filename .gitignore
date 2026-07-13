@@ -19,3 +19,6 @@ Thumbs.db
 
 # Environment
 .env
+
+# Runtime uploads
+backend/SmartDocsAI.API/Uploads/

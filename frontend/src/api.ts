@@ -15,6 +15,7 @@ export type DocumentItem = {
   fileType: string;
   fileSize: number;
   uploadDate: string;
+  indexingStatus: string;
 };
 
 export type ChatSource = {
@@ -107,6 +108,10 @@ export const api = {
   deleteDocument: (id: number) =>
     apiFetch<{ message?: string; Message?: string }>(`/documents/${id}`, {
       method: 'DELETE'
+    }),
+  reindexDocument: (id: number) =>
+    apiFetch<DocumentItem>(`/documents/${id}/reindex`, {
+      method: 'POST'
     }),
   askChat: (body: ChatRequest) =>
     apiFetch<ChatResponse>('/chat', {

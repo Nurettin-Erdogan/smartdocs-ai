@@ -63,6 +63,10 @@ namespace SmartDocsAI.API.Data
             modelBuilder.Entity<Document>()
                 .HasIndex(d => new { d.UserId, d.UploadDate });
 
+            modelBuilder.Entity<Document>()
+                .Property(d => d.IndexingStatus)
+                .HasDefaultValue("Pending");
+
             // Kullanıcı ve Sohbet ilişkisi
             modelBuilder.Entity<Conversation>()
                 .HasOne(c => c.User)

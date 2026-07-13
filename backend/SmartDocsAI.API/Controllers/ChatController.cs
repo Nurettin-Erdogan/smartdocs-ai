@@ -17,12 +17,18 @@ namespace SmartDocsAI.API.Controllers
         private readonly AppDbContext _context;
         private readonly IOllamaService _ollamaService;
         private readonly IQdrantService _qdrantService;
+        private readonly ILogger<ChatController> _logger;
 
-        public ChatController(AppDbContext context, IOllamaService ollamaService, IQdrantService qdrantService)
+        public ChatController(
+            AppDbContext context,
+            IOllamaService ollamaService,
+            IQdrantService qdrantService,
+            ILogger<ChatController> logger)
         {
             _context = context;
             _ollamaService = ollamaService;
             _qdrantService = qdrantService;
+            _logger = logger;
         }
 
         [HttpPost]
@@ -77,8 +83,27 @@ namespace SmartDocsAI.API.Controllers
                 return BadRequest(new { Message = "Önce bir PDF yüklemelisin." });
             }
 
-            var questionEmbedding = await _ollamaService.GetEmbeddingAsync(question);
-            var relevantChunks = await _qdrantService.SearchSimilarChunksAsync(questionEmbedding, 3, userDocumentIds);
+            List<QdrantSearchResult> relevantChunks;
+
+            try
+            {
+                var questionEmbedding = await _ollamaService.GetEmbeddingAsync(question);
+                relevantChunks = await _qdrantService.SearchSimilarChunksAsync(questionEmbedding, 3, userDocumentIds);
+            }
+            catch (HttpRequestException exception)
+            {
+                _logger.LogError(exception, "Sohbet araması için Ollama veya Qdrant servisine ulaşılamadı.");
+                return StatusCode(
+                    StatusCodes.Status503ServiceUnavailable,
+                    new { Message = "Sohbet servisi şu anda kullanılamıyor. Ollama ve Qdrant bağlantılarını kontrol edin." });
+            }
+            catch (TaskCanceledException exception)
+            {
+                _logger.LogError(exception, "Sohbet araması zaman aşımına uğradı.");
+                return StatusCode(
+                    StatusCodes.Status503ServiceUnavailable,
+                    new { Message = "Sohbet servisi zamanında yanıt vermedi. Lütfen tekrar deneyin." });
+            }
 
             if (relevantChunks.Count == 0)
             {

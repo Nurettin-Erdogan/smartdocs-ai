@@ -1,4 +1,4 @@
-CREATE TABLE IF NOT EXISTS "__EFMigrationsHistory" (
+﻿CREATE TABLE IF NOT EXISTS "__EFMigrationsHistory" (
     "MigrationId" character varying(150) NOT NULL,
     "ProductVersion" character varying(32) NOT NULL,
     CONSTRAINT "PK___EFMigrationsHistory" PRIMARY KEY ("MigrationId")
@@ -172,6 +172,54 @@ BEGIN
     IF NOT EXISTS(SELECT 1 FROM "__EFMigrationsHistory" WHERE "MigrationId" = '20260710052511_InitialPostgreSql') THEN
     INSERT INTO "__EFMigrationsHistory" ("MigrationId", "ProductVersion")
     VALUES ('20260710052511_InitialPostgreSql', '10.0.9');
+    END IF;
+END $EF$;
+COMMIT;
+START TRANSACTION;
+
+DO $EF$
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM "__EFMigrationsHistory" WHERE "MigrationId" = '20260710123934_AddDocumentIndexingStatus') THEN
+    ALTER TABLE "Documents" ADD "IndexingError" character varying(1000);
+    END IF;
+END $EF$;
+
+DO $EF$
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM "__EFMigrationsHistory" WHERE "MigrationId" = '20260710123934_AddDocumentIndexingStatus') THEN
+    ALTER TABLE "Documents" ADD "IndexingStatus" character varying(20) NOT NULL DEFAULT '';
+    END IF;
+END $EF$;
+
+DO $EF$
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM "__EFMigrationsHistory" WHERE "MigrationId" = '20260710123934_AddDocumentIndexingStatus') THEN
+    INSERT INTO "__EFMigrationsHistory" ("MigrationId", "ProductVersion")
+    VALUES ('20260710123934_AddDocumentIndexingStatus', '10.0.9');
+    END IF;
+END $EF$;
+COMMIT;
+START TRANSACTION;
+
+DO $EF$
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM "__EFMigrationsHistory" WHERE "MigrationId" = '20260710124151_NormalizeDocumentIndexingStatus') THEN
+    ALTER TABLE "Documents" ALTER COLUMN "IndexingStatus" SET DEFAULT 'Pending';
+    END IF;
+END $EF$;
+
+DO $EF$
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM "__EFMigrationsHistory" WHERE "MigrationId" = '20260710124151_NormalizeDocumentIndexingStatus') THEN
+    UPDATE "Documents" SET "IndexingStatus" = 'Pending' WHERE "IndexingStatus" = '';
+    END IF;
+END $EF$;
+
+DO $EF$
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM "__EFMigrationsHistory" WHERE "MigrationId" = '20260710124151_NormalizeDocumentIndexingStatus') THEN
+    INSERT INTO "__EFMigrationsHistory" ("MigrationId", "ProductVersion")
+    VALUES ('20260710124151_NormalizeDocumentIndexingStatus', '10.0.9');
     END IF;
 END $EF$;
 COMMIT;

@@ -21,6 +21,21 @@ const formatSize = (size: number) => {
   return `${(size / (1024 * 1024)).toFixed(1)} MB`;
 };
 
+const formatIndexingStatus = (status: string) => {
+  switch (status) {
+    case 'Ready':
+      return 'Hazır';
+    case 'Failed':
+      return 'İndekslenemedi';
+    case 'NoContent':
+      return 'Metin bulunamadı';
+    case 'Pending':
+      return 'İşleniyor';
+    default:
+      return status || 'Bilinmiyor';
+  }
+};
+
 function App() {
   const [authMode, setAuthMode] = useState<AuthMode>('login');
   const [user, setUser] = useState<UserState | null>(null);
@@ -156,6 +171,21 @@ function App() {
       await refreshData();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Silme başarısız oldu.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleReindex = async (id: number) => {
+    try {
+      setBusy(true);
+      setError('');
+      await api.reindexDocument(id);
+      setNotice('Belge yeniden indekslendi ve sohbete hazır.');
+      await refreshData();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Belge yeniden indekslenemedi.');
+      await refreshData();
     } finally {
       setBusy(false);
     }
@@ -357,12 +387,22 @@ function App() {
                 </div>
                 <div className="doc-meta">
                   <span>{document.fileType}</span>
+                  <span className={`status-pill status-${document.indexingStatus.toLowerCase()}`}>
+                    {formatIndexingStatus(document.indexingStatus)}
+                  </span>
                   <span>{formatSize(document.fileSize)}</span>
                   <span>{formatDate(document.uploadDate)}</span>
                 </div>
-                <button type="button" className="ghost-btn danger" onClick={() => handleDelete(document.id)} disabled={busy}>
-                  Sil
-                </button>
+                <div className="doc-actions">
+                  {(document.indexingStatus === 'Failed' || document.indexingStatus === 'Pending') && (
+                    <button type="button" className="ghost-btn retry" onClick={() => handleReindex(document.id)} disabled={busy}>
+                      Tekrar indeksle
+                    </button>
+                  )}
+                  <button type="button" className="ghost-btn danger" onClick={() => handleDelete(document.id)} disabled={busy}>
+                    Sil
+                  </button>
+                </div>
               </article>
             ))}
           </div>
@@ -378,7 +418,18 @@ function App() {
           </div>
 
           <form onSubmit={handleAsk} className="chat-form">
-            <textarea value={question} onChange={(e) => setQuestion(e.target.value)} placeholder="Örn: Bu dokümanda iade süresi kaç gün?" rows={5} />
+            <textarea
+              value={question}
+              onChange={(e) => setQuestion(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  e.currentTarget.form?.requestSubmit();
+                }
+              }}
+              placeholder="Sorunu yaz... Enter ile gönder"
+              rows={5}
+            />
             <button className="primary-btn" type="submit" disabled={busy}>
               {busy ? 'Cevap hazırlanıyor...' : 'Soruyu Gönder'}
             </button>
