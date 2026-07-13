@@ -137,6 +137,7 @@ Bu projede sadece özellik eklenmedi, aynı zamanda güvenlik ve hata dayanıkl�
 
 - JWT imza anahtarı koddan çıkarıldı ve user-secrets'a taşındı.
 - Varsayılan admin parolası appsettings dosyasından kaldırıldı.
+- Kayıt ve giriş endpointlerine IP bazlı hız sınırlaması uygulandı.
 - PDF yüklemede dosya uzantısı ve dosya imzası kontrolü eklendi.
 - Dosya adları doğrudan kullanılmak yerine güvenli hale getirildi.
 - PDF yükleme işlemi transaction mantığıyla daha güvenli hale getirildi.
@@ -212,7 +213,7 @@ Vite varsayılan olarak şu adreste açılır:
 http://localhost:5173
 ```
 
-Frontend `/api` isteklerini backend'e yönlendirir.
+Geliştirme ortamında Vite, `/api` ile başlayan istekleri `http://localhost:5129` adresindeki backend'e yönlendirir.
 
 TypeScript kontrolü:
 
@@ -238,25 +239,18 @@ smartdocs-ai/
 
 ## Mevcut Durum
 
-Kod tarafında backend endpointleri hazırdır ve backend build başarılıdır. Frontend tarafında TypeScript kontrolü başarılıdır.
+Son geliştirme kontrolünde backend build ve frontend TypeScript kontrolü başarıyla tamamlanmıştır.
 
-Canlı PDF sohbet akışının çalışması için Qdrant servisinin açık olması gerekir. Bu makinede Docker Desktop motoru başlamadığı için Qdrant container çalıştırılamamıştır. Bu nedenle canlı uçtan uca test için Docker/WSL altyapı izni gerekmektedir.
+- Backend endpointleri hazırdır.
+- Frontend arayüzü hazırdır.
+- PostgreSQL, Ollama ve Qdrant entegrasyonları kod tarafında bulunmaktadır.
+- Canlı RAG akışının çalışması için PostgreSQL, Ollama ve Qdrant servislerinin çalışır durumda olması gerekir.
+- Qdrant yerel olarak Docker üzerinden çalıştırılacaksa Docker Desktop ve gerekli WSL altyapısı açık olmalıdır.
 
-Kısa durum özeti:
-
-```text
-Backend endpointleri: hazır
-Frontend arayüz: hazır
-PostgreSQL bağlantısı: gerekli
-Ollama: gerekli
-Qdrant: gerekli
-Docker/WSL: Qdrant local çalışacaksa gerekli
-```
-
-## Hocaya Kısa Anlatım
+## Kısa Proje Özeti
 
 SmartDocs AI, PDF belgeleri üzerinden soru-cevap yapan bir RAG uygulamasıdır. Kullanıcı PDF yükler, backend PDF'i okur ve parçalara böler. Parçalar PostgreSQL'de saklanır, ayrıca embedding'e çevrilip Qdrant'a kaydedilir. Kullanıcı soru sorduğunda sistem Qdrant'ta ilgili PDF parçalarını bulur ve Ollama ile bu parçalara dayalı Türkçe cevap üretir.
 
 Projede auth, doküman yönetimi, PDF yükleme, PDF silme, tekrar indeksleme ve chat endpointleri hazırdır. Ayrıca JWT anahtarı ve admin parolası gibi hassas bilgiler config dosyalarından çıkarılmış, PDF yükleme güvenliği artırılmış ve Qdrant/Ollama servis hataları daha kontrollü hale getirilmiştir.
 
-Şu an kod tarafı hazırdır; canlı demo için eksik olan kısım local makinede Qdrant'ın çalışmasıdır. Qdrant Docker ile çalıştırıldığı için Docker Desktop'ın ve Windows tarafında gerekli WSL altyapısının açık olması gerekir.
+Canlı demo sırasında PostgreSQL, Ollama ve Qdrant servislerinin çalışır durumda olması gerekir.
