@@ -9,19 +9,36 @@ namespace SmartDocsAI.API.Interfaces
         /// <summary>
         /// Qdrant üzerinde vektörlerin saklanacağı koleksiyonu (varsa geçip, yoksa) oluşturur.
         /// </summary>
-        Task CreateCollectionIfNotExistsAsync();
+        Task CreateCollectionIfNotExistsAsync(CancellationToken cancellationToken = default);
 
         /// <summary>
         /// PDF parçalarını (Chunks) ve bu parçaların embedding vektörlerini Qdrant'a kaydeder.
         /// </summary>
-        Task SaveChunksAsync(List<Chunk> chunks, List<float[]> embeddings);
+        Task SaveChunksAsync(
+            List<Chunk> chunks,
+            List<float[]> embeddings,
+            string indexVersion,
+            CancellationToken cancellationToken = default);
 
-        Task DeleteDocumentChunksAsync(int documentId);
+        Task DeleteDocumentChunksAsync(int documentId, CancellationToken cancellationToken = default);
+
+        /// <summary>
+        /// Keeps the freshly written version and removes older vectors for the document.
+        /// </summary>
+        Task DeleteDocumentChunksExceptVersionAsync(
+            int documentId,
+            string indexVersion,
+            CancellationToken cancellationToken = default);
 
         /// <summary>
         /// Soru vektörüne en yakın (benzer) metin parçalarını Qdrant'tan getirir.
         /// </summary>
-        Task<List<QdrantSearchResult>> SearchSimilarChunksAsync(float[] queryVector, int limit = 3, List<int>? documentIds = null);
+        Task<List<QdrantSearchResult>> SearchSimilarChunksAsync(
+            float[] queryVector,
+            int limit,
+            List<int> documentIds,
+            double minimumScore,
+            CancellationToken cancellationToken = default);
     }
 
     /// <summary>

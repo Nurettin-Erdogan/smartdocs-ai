@@ -1,376 +1,193 @@
+using System.Collections.Concurrent;
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using SmartDocsAI.API.Data;
 using SmartDocsAI.API.DTOs;
 using SmartDocsAI.API.Interfaces;
 using SmartDocsAI.API.Models;
-using System.Security.Claims;
 
-namespace SmartDocsAI.API.Controllers
+namespace SmartDocsAI.API.Controllers;
+
+[Authorize]
+[ApiController]
+[Route("api/[controller]")]
+public sealed class DocumentsController : ControllerBase
 {
-    // PDF yükleme, listeleme, silme ve yeniden indeksleme işlemlerini yönetir.
-    [Authorize]
-    [ApiController]
-    [Route("api/[controller]")]
-    public class DocumentsController : ControllerBase
+    private const long MaxFileSize = 20 * 1024 * 1024;
+    private const long MaxRequestSize = MaxFileSize + (512 * 1024);
+    private const int EmbeddingBatchSize = 4;
+    private static readonly ConcurrentDictionary<int, byte> ActiveReindexJobs = new();
+
+    private readonly AppDbContext _context;
+    private readonly IWebHostEnvironment _environment;
+    private readonly IDocumentProcessor _documentProcessor;
+    private readonly IOllamaService _ollamaService;
+    private readonly IQdrantService _qdrantService;
+    private readonly ILogger<DocumentsController> _logger;
+
+    public DocumentsController(
+        AppDbContext context,
+        IWebHostEnvironment environment,
+        IDocumentProcessor documentProcessor,
+        IOllamaService ollamaService,
+        IQdrantService qdrantService,
+        ILogger<DocumentsController> logger)
     {
-        private const long MaxFileSize = 20 * 1024 * 1024;
-        private const int EmbeddingBatchSize = 4;
+        _context = context;
+        _environment = environment;
+        _documentProcessor = documentProcessor;
+        _ollamaService = ollamaService;
+        _qdrantService = qdrantService;
+        _logger = logger;
+    }
 
-        private readonly AppDbContext _context;
-        private readonly IWebHostEnvironment _env;
-        private readonly IDocumentProcessor _documentProcessor;
-        private readonly IOllamaService _ollamaService;
-        private readonly IQdrantService _qdrantService;
-        private readonly ILogger<DocumentsController> _logger;
-
-        public DocumentsController(
-            AppDbContext context,
-            IWebHostEnvironment env,
-            IDocumentProcessor documentProcessor,
-            IOllamaService ollamaService,
-            IQdrantService qdrantService,
-            ILogger<DocumentsController> logger)
+    [HttpPost("upload")]
+    [EnableRateLimiting("DocumentWritePolicy")]
+    [RequestSizeLimit(MaxRequestSize)]
+    public async Task<IActionResult> UploadDocument(
+        [FromForm] IFormFile file,
+        CancellationToken cancellationToken)
+    {
+        if (file is null || file.Length == 0)
         {
-            _context = context;
-            _env = env;
-            _documentProcessor = documentProcessor;
-            _ollamaService = ollamaService;
-            _qdrantService = qdrantService;
-            _logger = logger;
+            return BadRequest(new { Message = "Lütfen bir dosya seçin." });
         }
 
-        /// <summary>
-        /// PDF dosyasını kaydeder, metnini parçalara böler ve Qdrant'a indeksler.
-        /// </summary>
-        [HttpPost("upload")]
-        public async Task<IActionResult> UploadDocument(IFormFile file)
+        if (file.Length > MaxFileSize)
         {
-            // Dosyanın temel kurallara uygunluğunu kontrol eder.
-            if (file == null || file.Length == 0)
+            return BadRequest(new { Message = "PDF dosyası en fazla 20 MB olabilir." });
+        }
+
+        var extension = Path.GetExtension(file.FileName).ToLowerInvariant();
+        if (extension != ".pdf")
+        {
+            return BadRequest(new { Message = "Yalnızca PDF belgeleri yüklenebilir." });
+        }
+
+        if (!await HasPdfSignatureAsync(file, cancellationToken))
+        {
+            return BadRequest(new { Message = "Dosya içeriği geçerli bir PDF değil." });
+        }
+
+        if (!TryGetUserId(out var userId))
+        {
+            return Unauthorized(new { Message = "Kullanıcı oturumu geçersiz." });
+        }
+
+        var safeOriginalFileName = new string(Path.GetFileName(file.FileName)
+            .Where(character => !char.IsControl(character))
+            .ToArray())
+            .Trim();
+        var title = Path.GetFileNameWithoutExtension(safeOriginalFileName).Trim();
+        if (string.IsNullOrWhiteSpace(title))
+        {
+            return BadRequest(new { Message = "PDF dosyasının geçerli bir adı olmalıdır." });
+        }
+
+        title = title[..Math.Min(title.Length, 255)];
+        safeOriginalFileName = safeOriginalFileName.Length <= 255
+            ? safeOriginalFileName
+            : $"{Path.GetFileNameWithoutExtension(safeOriginalFileName)[..250]}.pdf";
+
+        var uploadsFolder = Path.Combine(_environment.ContentRootPath, "Uploads");
+        Directory.CreateDirectory(uploadsFolder);
+
+        var uniqueFileName = $"{Guid.NewGuid():N}.pdf";
+        var filePath = Path.Combine(uploadsFolder, uniqueFileName);
+        var uploadCommitted = false;
+        Document? document = null;
+
+        await using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
+
+        try
+        {
+            await using (var stream = new FileStream(
+                filePath,
+                FileMode.CreateNew,
+                FileAccess.Write,
+                FileShare.None,
+                81_920,
+                useAsync: true))
             {
-                return BadRequest(new { Message = "Lütfen bir dosya seçin." });
+                await file.CopyToAsync(stream, cancellationToken);
             }
 
-            if (file.Length > MaxFileSize)
+            document = new Document
             {
-                return BadRequest(new { Message = "PDF dosyası en fazla 20 MB olabilir." });
-            }
+                UserId = userId,
+                Title = title,
+                FileName = safeOriginalFileName,
+                FileType = extension,
+                FilePath = filePath,
+                FileSize = file.Length,
+                UploadDate = DateTime.UtcNow,
+                IndexingStatus = "Pending"
+            };
 
-            var extension = Path.GetExtension(file.FileName).ToLower();
-            if (extension != ".pdf")
-            {
-                return BadRequest(new { Message = "Yalnızca PDF belgeleri yüklenebilir." });
-            }
+            _context.Documents.Add(document);
+            await _context.SaveChangesAsync(cancellationToken);
 
-            if (!await HasPdfSignatureAsync(file))
-            {
-                return BadRequest(new { Message = "Dosya içeriği geçerli bir PDF değil." });
-            }
-
-            // Belgeyi giriş yapan kullanıcıyla ilişkilendirmek için JWT'den kullanıcı ID'sini alır.
-            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-            if (string.IsNullOrEmpty(userIdClaim))
-            {
-                return Unauthorized(new { Message = "Kullanıcı oturumu geçersiz." });
-            }
-
-            if (!int.TryParse(userIdClaim, out var userId))
-            {
-                return Unauthorized(new { Message = "Kullanıcı oturumu geçersiz." });
-            }
-
-            // Dosya için güvenli ve benzersiz bir kayıt yolu oluşturur.
-            var uploadsFolder = Path.Combine(_env.ContentRootPath, "Uploads");
-            if (!Directory.Exists(uploadsFolder))
-            {
-                Directory.CreateDirectory(uploadsFolder);
-            }
-
-            var safeOriginalFileName = Path.GetFileName(file.FileName);
-            var uniqueFileName = $"{Guid.NewGuid():N}.pdf";
-            var title = Path.GetFileNameWithoutExtension(safeOriginalFileName).Trim();
-
-            if (string.IsNullOrWhiteSpace(title))
-            {
-                return BadRequest(new { Message = "PDF dosyasının geçerli bir adı olmalıdır." });
-            }
-
-            if (title.Length > 255)
-            {
-                title = title[..255];
-            }
-
-            var filePath = Path.Combine(uploadsFolder, uniqueFileName);
-            await using var transaction = await _context.Database.BeginTransactionAsync();
-            var uploadCommitted = false;
+            var chunks = await _documentProcessor.ProcessPdfAsync(document, cancellationToken);
+            _context.Chunks.AddRange(chunks);
+            await _context.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+            uploadCommitted = true;
 
             try
             {
-                // PDF'yi sunucuya kaydeder.
-                using (var stream = new FileStream(filePath, FileMode.Create))
-                {
-                    await file.CopyToAsync(stream);
-                }
-
-                // Belge kaydını PostgreSQL'e ekler.
-                var document = new Document
-                {
-                    UserId = userId,
-                    Title = title,
-                    FileName = uniqueFileName,
-                    FileType = extension,
-                    FilePath = filePath,
-                    FileSize = file.Length,
-                    UploadDate = DateTime.UtcNow,
-                    IndexingStatus = "Pending"
-                };
-
-                _context.Documents.Add(document);
-                await _context.SaveChangesAsync();
-
-                // PDF metnini chunk'lara böler ve PostgreSQL'e kaydeder.
-                var chunks = await _documentProcessor.ProcessPdfAsync(document);
-                _context.Chunks.AddRange(chunks);
-                await _context.SaveChangesAsync();
-                await transaction.CommitAsync();
-                uploadCommitted = true;
-
-                // Chunk'ların embedding'lerini üretip Qdrant'a kaydeder.
-                if (chunks.Count > 0)
-                {
-                    try
-                    {
-                        var embeddings = await GenerateEmbeddingsInBatchesAsync(chunks);
-                        await _qdrantService.SaveChunksAsync(chunks, embeddings);
-                        document.IndexingStatus = "Ready";
-                        document.IndexingError = null;
-                    }
-                    catch (Exception exception)
-                    {
-                        _logger.LogError(exception, "Belge {DocumentId} Qdrant'a indekslenemedi.", document.Id);
-                        document.IndexingStatus = "Failed";
-                        document.IndexingError = exception.GetBaseException().Message[..Math.Min(1000, exception.GetBaseException().Message.Length)];
-                    }
-                }
-                else
-                {
-                    document.IndexingStatus = "NoContent";
-                    document.IndexingError = "Belgeden işlenecek metin çıkarılamadı.";
-                }
-
-                await _context.SaveChangesAsync();
-
-                var documentDto = new DocumentDto
-                {
-                    Id = document.Id,
-                    Title = document.Title,
-                    FileName = document.FileName,
-                    FileType = document.FileType,
-                    FileSize = document.FileSize,
-                    UploadDate = document.UploadDate,
-                    IndexingStatus = document.IndexingStatus
-                };
-
-                return Ok(new
-                {
-                    documentDto.Id,
-                    documentDto.Title,
-                    documentDto.FileName,
-                    documentDto.FileType,
-                    documentDto.FileSize,
-                    documentDto.UploadDate,
-                    IndexingStatus = document.IndexingStatus
-                });
+                await IndexDocumentAsync(document, chunks, cancellationToken);
             }
-            finally
+            catch (OperationCanceledException)
             {
-                // Veritabanı işlemi tamamlanmadıysa yarım kalan fiziksel dosyayı temizler.
-                if (!uploadCommitted && System.IO.File.Exists(filePath))
-                {
-                    System.IO.File.Delete(filePath);
-                }
-            }
-        }
-
-        /// <summary>
-        /// Giriş yapan kullanıcının belgelerini listeler.
-        /// </summary>
-        [HttpGet]
-        public async Task<IActionResult> GetDocuments()
-        {
-            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-            if (string.IsNullOrEmpty(userIdClaim))
-            {
-                return Unauthorized();
-            }
-
-            if (!int.TryParse(userIdClaim, out var userId))
-            {
-                return Unauthorized(new { Message = "Kullanıcı oturumu geçersiz." });
-            }
-
-            // Yalnızca giriş yapan kullanıcıya ait belgeleri getirir.
-            var documents = await _context.Documents
-                .Where(d => d.UserId == userId)
-                .OrderByDescending(d => d.UploadDate)
-                .Select(d => new DocumentDto
-                {
-                    Id = d.Id,
-                    Title = d.Title,
-                    FileName = d.FileName,
-                    FileType = d.FileType,
-                    FileSize = d.FileSize,
-                    UploadDate = d.UploadDate,
-                    IndexingStatus = d.IndexingStatus
-                })
-                .ToListAsync();
-
-            return Ok(documents);
-        }
-
-        /// <summary>
-        /// Belgeyi Qdrant'tan, sunucudan ve PostgreSQL'den siler.
-        /// </summary>
-        [HttpDelete("{id}")]
-        public async Task<IActionResult> DeleteDocument(int id)
-        {
-            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-            if (string.IsNullOrEmpty(userIdClaim))
-            {
-                return Unauthorized();
-            }
-
-            if (!int.TryParse(userIdClaim, out var userId))
-            {
-                return Unauthorized(new { Message = "Kullanıcı oturumu geçersiz." });
-            }
-
-            // Belgenin kullanıcıya ait olduğunu da kontrol eder.
-            var document = await _context.Documents
-                .FirstOrDefaultAsync(d => d.Id == id && d.UserId == userId);
-
-            if (document == null)
-            {
-                return NotFound(new { Message = "Belge bulunamadı veya bu belge üzerinde işlem yapma yetkiniz yok." });
-            }
-
-            try
-            {
-                await _qdrantService.DeleteDocumentChunksAsync(document.Id);
-            }
-            catch (Exception exception) when (
-                exception is HttpRequestException or TaskCanceledException)
-            {
-                if (document.IndexingStatus == "Ready")
-                {
-                    _logger.LogError(exception, "Belge {DocumentId} için Qdrant temizliği başarısız oldu.", document.Id);
-                    return StatusCode(
-                        StatusCodes.Status503ServiceUnavailable,
-                        new { Message = "Belge şu anda silinemiyor. Qdrant servisine ulaşılamadı." });
-                }
-
-                _logger.LogWarning(
-                    exception,
-                    "İndekslenmemiş belge {DocumentId}, Qdrant kapalı olmasına rağmen yerel kayıtlardan siliniyor.",
-                    document.Id);
-            }
-
-            if (System.IO.File.Exists(document.FilePath))
-            {
-                System.IO.File.Delete(document.FilePath);
-            }
-
-            _context.Documents.Remove(document);
-            await _context.SaveChangesAsync();
-
-            return Ok(new { Message = "Belge başarıyla silindi." });
-        }
-
-        /// <summary>
-        /// Başarısız olan belge indeksleme işlemini yeniden dener.
-        /// </summary>
-        [HttpPost("{id}/reindex")]
-        public async Task<IActionResult> ReindexDocument(int id)
-        {
-            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-            if (!int.TryParse(userIdClaim, out var userId))
-            {
-                return Unauthorized(new { Message = "Kullanıcı oturumu geçersiz." });
-            }
-
-            var document = await _context.Documents
-                .Include(d => d.Chunks)
-                .FirstOrDefaultAsync(d => d.Id == id && d.UserId == userId);
-
-            if (document == null)
-            {
-                return NotFound(new { Message = "Belge bulunamadı veya bu belge üzerinde işlem yapma yetkiniz yok." });
-            }
-
-            var chunks = document.Chunks
-                .OrderBy(chunk => chunk.ChunkIndex)
-                .ToList();
-
-            if (chunks.Count == 0)
-            {
-                document.IndexingStatus = "NoContent";
-                document.IndexingError = "Belgeden işlenecek metin çıkarılamadı.";
-                await _context.SaveChangesAsync();
-
-                return BadRequest(new { Message = document.IndexingError });
-            }
-
-            document.IndexingStatus = "Pending";
-            document.IndexingError = null;
-            await _context.SaveChangesAsync();
-
-            try
-            {
-                // Eski vektörleri temizleyip embedding'leri yeniden oluşturur.
-                await _qdrantService.DeleteDocumentChunksAsync(document.Id);
-                var embeddings = await GenerateEmbeddingsInBatchesAsync(chunks);
-                await _qdrantService.SaveChunksAsync(chunks, embeddings);
-
-                document.IndexingStatus = "Ready";
-                document.IndexingError = null;
-                await _context.SaveChangesAsync();
-
-                return Ok(ToDocumentDto(document));
+                throw;
             }
             catch (Exception exception)
             {
-                _logger.LogError(exception, "Belge {DocumentId} yeniden indekslenemedi.", document.Id);
+                _logger.LogError(exception, "Document {DocumentId} could not be indexed.", document.Id);
                 document.IndexingStatus = "Failed";
                 document.IndexingError = LimitIndexingError(exception);
-                await _context.SaveChangesAsync();
-
-                return StatusCode(
-                    StatusCodes.Status503ServiceUnavailable,
-                    new { Message = "Belge indekslenemedi. Ollama ve Qdrant servislerini kontrol edin." });
             }
+
+            await _context.SaveChangesAsync(cancellationToken);
+
+            return Ok(ToDocumentDto(document));
         }
-
-        // Chunk embedding'lerini sunucuyu yormamak için küçük gruplar hâlinde üretir.
-        private async Task<List<float[]>> GenerateEmbeddingsInBatchesAsync(List<Chunk> chunks)
+        catch (InvalidDataException exception) when (!uploadCommitted)
         {
-            var embeddings = new List<float[]>(chunks.Count);
-
-            foreach (var batch in chunks.Chunk(EmbeddingBatchSize))
+            return BadRequest(new { Message = exception.Message });
+        }
+        catch (OperationCanceledException) when (document is not null && uploadCommitted)
+        {
+            document.IndexingStatus = "Failed";
+            document.IndexingError = "İndeksleme isteği iptal edildi.";
+            await TrySaveIndexingStateAsync();
+            throw;
+        }
+        finally
+        {
+            if (!uploadCommitted && System.IO.File.Exists(filePath))
             {
-                var batchEmbeddings = await Task.WhenAll(
-                    batch.Select(chunk => _ollamaService.GetEmbeddingAsync(chunk.Content)));
-
-                embeddings.AddRange(batchEmbeddings);
+                System.IO.File.Delete(filePath);
             }
+        }
+    }
 
-            return embeddings;
+    [HttpGet]
+    public async Task<IActionResult> GetDocuments(CancellationToken cancellationToken)
+    {
+        if (!TryGetUserId(out var userId))
+        {
+            return Unauthorized(new { Message = "Kullanıcı oturumu geçersiz." });
         }
 
-        private static DocumentDto ToDocumentDto(Document document)
-        {
-            return new DocumentDto
+        var documents = await _context.Documents
+            .AsNoTracking()
+            .Where(document => document.UserId == userId)
+            .OrderByDescending(document => document.UploadDate)
+            .Select(document => new DocumentDto
             {
                 Id = document.Id,
                 Title = document.Title,
@@ -379,33 +196,262 @@ namespace SmartDocsAI.API.Controllers
                 FileSize = document.FileSize,
                 UploadDate = document.UploadDate,
                 IndexingStatus = document.IndexingStatus
-            };
-        }
+            })
+            .ToListAsync(cancellationToken);
 
-        // Veritabanında tutulacak hata mesajını en fazla 1000 karaktere indirir.
-        private static string LimitIndexingError(Exception exception)
+        return Ok(documents);
+    }
+
+    [HttpDelete("{id:int}")]
+    [EnableRateLimiting("DocumentWritePolicy")]
+    public async Task<IActionResult> DeleteDocument(int id, CancellationToken cancellationToken)
+    {
+        if (!TryGetUserId(out var userId))
         {
-            var message = exception.GetBaseException().Message;
-            return message[..Math.Min(1000, message.Length)];
+            return Unauthorized(new { Message = "Kullanıcı oturumu geçersiz." });
         }
 
-        // Dosyanın "%PDF-" imzasıyla başlayıp başlamadığını kontrol eder.
-        private static async Task<bool> HasPdfSignatureAsync(IFormFile file)
+        if (ActiveReindexJobs.ContainsKey(id))
         {
-            var signature = new byte[5];
-
-            await using var stream = file.OpenReadStream();
-            var bytesRead = await stream.ReadAtLeastAsync(
-                signature,
-                signature.Length,
-                throwOnEndOfStream: false);
-
-            return bytesRead == signature.Length
-                && signature[0] == 0x25
-                && signature[1] == 0x50
-                && signature[2] == 0x44
-                && signature[3] == 0x46
-                && signature[4] == 0x2D;
+            return Conflict(new { Message = "İndeksleme sürerken belge silinemez." });
         }
+
+        var document = await _context.Documents
+            .FirstOrDefaultAsync(
+                item => item.Id == id && item.UserId == userId,
+                cancellationToken);
+
+        if (document is null)
+        {
+            return NotFound(new { Message = "Belge bulunamadı veya bu belge üzerinde işlem yapma yetkiniz yok." });
+        }
+
+        try
+        {
+            await _qdrantService.DeleteDocumentChunksAsync(document.Id, cancellationToken);
+        }
+        catch (Exception exception) when (
+            exception is HttpRequestException or TaskCanceledException)
+        {
+            if (document.IndexingStatus == "Ready")
+            {
+                _logger.LogError(exception, "Qdrant cleanup failed for document {DocumentId}.", document.Id);
+                return StatusCode(
+                    StatusCodes.Status503ServiceUnavailable,
+                    new { Message = "Belge şu anda silinemiyor. Qdrant servisine ulaşılamadı." });
+            }
+
+            _logger.LogWarning(
+                exception,
+                "Unindexed document {DocumentId} is being removed while Qdrant is unavailable.",
+                document.Id);
+        }
+
+        if (System.IO.File.Exists(document.FilePath))
+        {
+            System.IO.File.Delete(document.FilePath);
+        }
+
+        _context.Documents.Remove(document);
+        await _context.SaveChangesAsync(cancellationToken);
+
+        return Ok(new { Message = "Belge başarıyla silindi." });
+    }
+
+    [HttpPost("{id:int}/reindex")]
+    [EnableRateLimiting("DocumentWritePolicy")]
+    public async Task<IActionResult> ReindexDocument(int id, CancellationToken cancellationToken)
+    {
+        if (!TryGetUserId(out var userId))
+        {
+            return Unauthorized(new { Message = "Kullanıcı oturumu geçersiz." });
+        }
+
+        if (!ActiveReindexJobs.TryAdd(id, 0))
+        {
+            return Conflict(new { Message = "Bu belge için indeksleme zaten devam ediyor." });
+        }
+
+        try
+        {
+            var document = await _context.Documents
+                .Include(item => item.Chunks)
+                .FirstOrDefaultAsync(
+                    item => item.Id == id && item.UserId == userId,
+                    cancellationToken);
+
+            if (document is null)
+            {
+                return NotFound(new { Message = "Belge bulunamadı veya bu belge üzerinde işlem yapma yetkiniz yok." });
+            }
+
+            if (document.IndexingStatus == "Pending")
+            {
+                return Conflict(new { Message = "Bu belge için indeksleme zaten devam ediyor." });
+            }
+
+            var chunks = document.Chunks.OrderBy(chunk => chunk.ChunkIndex).ToList();
+            if (chunks.Count == 0)
+            {
+                document.IndexingStatus = "NoContent";
+                document.IndexingError = "Belgeden işlenecek metin çıkarılamadı.";
+                await _context.SaveChangesAsync(cancellationToken);
+                return BadRequest(new { Message = document.IndexingError });
+            }
+
+            var previousStatus = document.IndexingStatus;
+            document.IndexingStatus = "Pending";
+            document.IndexingError = null;
+            await _context.SaveChangesAsync(cancellationToken);
+
+            try
+            {
+                await IndexDocumentAsync(document, chunks, cancellationToken);
+                await _context.SaveChangesAsync(cancellationToken);
+                return Ok(ToDocumentDto(document));
+            }
+            catch (OperationCanceledException)
+            {
+                document.IndexingStatus = previousStatus == "Ready" ? "Ready" : "Failed";
+                document.IndexingError = "Yeniden indeksleme isteği iptal edildi; önceki indeks korundu.";
+                await TrySaveIndexingStateAsync();
+                throw;
+            }
+            catch (Exception exception)
+            {
+                _logger.LogError(exception, "Document {DocumentId} could not be reindexed.", document.Id);
+                document.IndexingStatus = previousStatus == "Ready" ? "Ready" : "Failed";
+                document.IndexingError = LimitIndexingError(exception);
+                await _context.SaveChangesAsync(CancellationToken.None);
+
+                return StatusCode(
+                    StatusCodes.Status503ServiceUnavailable,
+                    new
+                    {
+                        Message = previousStatus == "Ready"
+                            ? "Yeniden indeksleme başarısız oldu; çalışan önceki indeks korundu."
+                            : "Belge indekslenemedi. Ollama ve Qdrant servislerini kontrol edin."
+                    });
+            }
+        }
+        finally
+        {
+            ActiveReindexJobs.TryRemove(id, out _);
+        }
+    }
+
+    private async Task IndexDocumentAsync(
+        Document document,
+        List<Chunk> chunks,
+        CancellationToken cancellationToken)
+    {
+        if (chunks.Count == 0)
+        {
+            document.IndexingStatus = "NoContent";
+            document.IndexingError = "Belgeden işlenecek metin çıkarılamadı.";
+            return;
+        }
+
+        var embeddings = await GenerateEmbeddingsInBatchesAsync(chunks, cancellationToken);
+        var indexVersion = Guid.NewGuid().ToString("N");
+
+        // New vectors are fully written before older versions are removed.
+        await _qdrantService.SaveChunksAsync(
+            chunks,
+            embeddings,
+            indexVersion,
+            cancellationToken);
+
+        try
+        {
+            await _qdrantService.DeleteDocumentChunksExceptVersionAsync(
+                document.Id,
+                indexVersion,
+                cancellationToken);
+        }
+        catch (Exception cleanupException) when (cleanupException is not OperationCanceledException)
+        {
+            // The fresh version is usable. Duplicate old points are deduplicated during search.
+            _logger.LogWarning(
+                cleanupException,
+                "Old Qdrant vectors for document {DocumentId} could not be cleaned up.",
+                document.Id);
+        }
+
+        document.IndexingStatus = "Ready";
+        document.IndexingError = null;
+    }
+
+    private async Task<List<float[]>> GenerateEmbeddingsInBatchesAsync(
+        List<Chunk> chunks,
+        CancellationToken cancellationToken)
+    {
+        var embeddings = new List<float[]>(chunks.Count);
+
+        foreach (var batch in chunks.Chunk(EmbeddingBatchSize))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var batchEmbeddings = await Task.WhenAll(
+                batch.Select(chunk =>
+                    _ollamaService.GetEmbeddingAsync(chunk.Content, cancellationToken)));
+            embeddings.AddRange(batchEmbeddings);
+        }
+
+        return embeddings;
+    }
+
+    private bool TryGetUserId(out int userId)
+    {
+        var claim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        return int.TryParse(claim, out userId);
+    }
+
+    private async Task TrySaveIndexingStateAsync()
+    {
+        try
+        {
+            await _context.SaveChangesAsync(CancellationToken.None);
+        }
+        catch (Exception exception)
+        {
+            _logger.LogError(exception, "The canceled indexing state could not be persisted.");
+        }
+    }
+
+    private static DocumentDto ToDocumentDto(Document document) => new()
+    {
+        Id = document.Id,
+        Title = document.Title,
+        FileName = document.FileName,
+        FileType = document.FileType,
+        FileSize = document.FileSize,
+        UploadDate = document.UploadDate,
+        IndexingStatus = document.IndexingStatus
+    };
+
+    private static string LimitIndexingError(Exception exception)
+    {
+        var message = exception.GetBaseException().Message;
+        return message[..Math.Min(1_000, message.Length)];
+    }
+
+    private static async Task<bool> HasPdfSignatureAsync(
+        IFormFile file,
+        CancellationToken cancellationToken)
+    {
+        var signature = new byte[5];
+        await using var stream = file.OpenReadStream();
+        var bytesRead = await stream.ReadAtLeastAsync(
+            signature,
+            signature.Length,
+            throwOnEndOfStream: false,
+            cancellationToken);
+
+        return bytesRead == signature.Length
+            && signature[0] == 0x25
+            && signature[1] == 0x50
+            && signature[2] == 0x44
+            && signature[3] == 0x46
+            && signature[4] == 0x2D;
     }
 }

@@ -1,127 +1,110 @@
-# SmartDocs AI System Architecture
+# Sistem mimarisi
 
-## Amaç
+SmartDocs AI, belge metnini ilişkisel veritabanında; arama vektörlerini Qdrant'ta tutan bir RAG uygulamasıdır. Cevap üretimi ve embedding işlemleri Ollama üzerinden yerel altyapıda çalışabilir.
 
-SmartDocs AI, kullanıcıların yüklediği dokümanları analiz ederek yapay zekâ destekli soru-cevap yapılmasını sağlayan RAG (Retrieval-Augmented Generation) tabanlı bir doküman yönetim sistemidir.
+```text
+Tarayıcı / React
+       │ HTTPS + JWT
+       ▼
+ASP.NET Core API
+       ├── PostgreSQL ── kullanıcı, belge, chunk, sohbet, mesaj
+       ├── Qdrant ────── embedding + belge/sayfa/chunk payload'ı
+       ├── Ollama ────── /api/embed + /api/generate
+       └── Uploads ───── benzersiz fiziksel PDF dosyaları
+```
 
----
+## Bileşen sınırları
 
-# Genel Mimari
+### React frontend
 
-Kullanıcı
-↓
-React Frontend
-↓
-ASP.NET Core Web API
-↓
-SQL Server + Qdrant
-↓
-Ollama / OpenAI
-↓
-AI Cevabı
+- kayıt, giriş ve güvenli oturum temizleme
+- PDF seçimi, istemci tarafı uzantı/boyut kontrolü
+- belge durumlarını, sohbet geçmişini ve kaynakları gösterme
+- `401` yanıtında merkezi oturum sonlandırma
+- eski sohbetleri ayrıntı endpointinden ihtiyaç anında yükleme
 
----
+### ASP.NET Core API
 
-# Sistem Bileşenleri
+- JWT doğrulama ve kullanıcı sahipliği kontrolleri
+- istek doğrulama ve endpoint bazlı hız sınırlama
+- PDF'yi güvenli adla kaydetme ve PdfPig ile metin çıkarma
+- PostgreSQL, Ollama ve Qdrant arasındaki indeksleme akışını yönetme
+- sadece yeterli skorlu ve kullanıcıya ait sonuçlarla prompt oluşturma
+- sohbet ve kaynak yanıtını üretme
 
-## Frontend (React)
+### PostgreSQL
 
-Görevleri
+PostgreSQL uygulamanın kayıt kaynağıdır. Bir belgenin sohbet aramasına katılıp katılmayacağını `Documents.IndexingStatus` belirler. EF Core migration'ları şemanın asıl kaynağıdır ve uygulama başlangıcında uygulanır.
 
-- Kullanıcı giriş ekranı
-- Dashboard
-- Doküman yönetimi
-- Chat ekranı
-- Raporlama
+### Qdrant
 
----
+Her nokta şu payload alanlarını taşır:
 
-## Backend (ASP.NET Core Web API)
+```text
+documentId, chunkIndex, content, pageNumber, indexVersion
+```
 
-Görevleri
+Arama, PostgreSQL'den alınan kullanıcının `Ready` belge kimlikleriyle filtrelenir. API ayrıca gelen sonuçlarda sahiplik filtresini yeniden uygular ve aynı belge/parça çiftinin eski indeks sürümlerini tekilleştirir.
 
-- API Servisleri
-- JWT Authentication
-- Doküman yönetimi
-- PDF işleme
-- AI ile iletişim
-- SQL Server bağlantısı
+### Ollama
 
----
+- `POST /api/embed`: soru ve belge parçaları için embedding
+- `POST /api/generate`: bulunan bağlamdan Türkçe cevap
 
-## SQL Server
+Embedding modelinin boyutu Qdrant `VectorSize` ile aynı olmalıdır. Varsayılan `nomic-embed-text` yapılandırması 768 boyut kullanır.
 
-Görevleri
+## Belge yükleme akışı
 
-- Kullanıcı bilgileri
-- Belgeler
-- Sohbet geçmişi
-- Sistem kayıtları
+1. JWT doğrulanır ve kullanıcı kimliği claim'den alınır.
+2. Dosya uzantısı, boyutu ve `%PDF-` imzası doğrulanır.
+3. PDF benzersiz fiziksel adla `Uploads` dizinine yazılır.
+4. Belge kaydı `Pending` olarak oluşturulur.
+5. PdfPig sayfa metinlerini çıkarır; metin 800 karakterlik, 150 karakter örtüşmeli parçalara bölünür.
+6. Belge ve parçalar PostgreSQL transaction'ında kalıcılaştırılır.
+7. Parçaların embedding'leri sınırlı paralel paketlerde üretilir.
+8. Qdrant koleksiyonu yoksa oluşturulur ve vektörler paketler hâlinde yazılır.
+9. Belge `Ready`, `Failed` veya `NoContent` durumuna geçirilir.
 
----
+İndeksleme başarısız olsa bile başarıyla yüklenmiş PDF ve parçalar korunur; kullanıcı yeniden indeksleme yapabilir.
 
-## Qdrant
+## Güvenli yeniden indeksleme
 
-Görevleri
+```text
+eski çalışan sürüm
+       │
+       ├── yeni embedding'leri üret
+       ├── yeni indexVersion ile tüm noktaları yaz
+       ├── diğer sürümleri temizlemeyi dene
+       └── belgeyi Ready yap
+```
 
-- Embedding saklamak
-- Semantic Search yapmak
-- En alakalı belge parçalarını bulmak
+Yeni sürüm tamamen yazılmadan eski sürüm silinmez. Eski sürüm temizliği geçici olarak başarısız olursa arama `(documentId, chunkIndex)` üzerinden en yüksek skorlu sonucu seçerek kopyaları bastırır.
 
----
+## Soru-cevap akışı
 
-## Ollama / OpenAI
+1. Soru ve sohbet sahipliği doğrulanır.
+2. Kullanıcının `Ready` belge kimlikleri PostgreSQL'den alınır.
+3. Takip sorularında son konuşma bağlamı retrieval sorgusuna eklenir.
+4. Soru Ollama ile embedding'e dönüştürülür.
+5. Qdrant Query API, belge kimliği filtresi ve minimum skorla aranır.
+6. En ilgili parçalar, son beş mesaj ve güvenlik talimatları prompt'a eklenir.
+7. Ollama cevap üretir.
+8. Soru/cevap PostgreSQL'e kaydedilir; kaynaklar istemciye döner.
 
-Görevleri
+Belge içindeki talimatlar veri kabul edilir; sistem prompt'u bunların uygulanmamasını açıkça söyler. Belgelerde dayanak yoksa modelden tahmin yürütmemesi istenir.
 
-- Kullanıcı sorusunu cevaplamak
-- Sadece ilgili belge parçalarını kullanarak cevap üretmek
+## Güvenlik sınırları
 
----
+- kullanıcılar belge ve sohbetleri yalnızca kendi `UserId` değerleri üzerinden okuyabilir
+- JWT HMAC-SHA512 anahtarı en az 64 bayt olmalıdır
+- token ömrü varsayılan 8 saattir ve saat kayması toleransı sıfırdır
+- upload, auth ve chat için ayrı sabit pencere hız limitleri vardır
+- fiziksel dosya adı kullanıcı girdisinden bağımsız UUID'dir
+- tek PDF 20 MB ve yapılandırılabilir chunk sayısıyla sınırlıdır
+- dış servis timeout'ları ve iptal token'ları tüm akışa taşınır
 
-# Doküman İşleme Akışı
+## Tutarlılık ve bilinen ölçek sınırları
 
-1. Kullanıcı belge yükler.
-2. Backend belgeyi okur.
-3. Belge metne dönüştürülür.
-4. Metin küçük parçalara bölünür (Chunking).
-5. Her parça embedding'e dönüştürülür.
-6. Embedding'ler Qdrant'a kaydedilir.
+PostgreSQL ile Qdrant arasında dağıtık transaction yoktur. Kod güvenli işlem sırasıyla riski azaltır; ancak çok düğümlü üretim sisteminde kalıcı iş kuyruğu, outbox ve periyodik artık vektör temizliği eklenmelidir.
 
----
-
-# AI Soru-Cevap Akışı
-
-1. Kullanıcı soru sorar.
-2. Soru embedding'e dönüştürülür.
-3. Qdrant en alakalı parçaları bulur.
-4. Bu parçalar LLM'e gönderilir.
-5. LLM cevap üretir.
-6. Kaynak bilgisi kullanıcıya gösterilir.
-
----
-
-# Kullanılan Teknolojiler
-
-Frontend
-- React
-- Tailwind CSS
-
-Backend
-- ASP.NET Core Web API
-- Entity Framework Core
-
-Veritabanı
-- SQL Server
-
-Vector Database
-- Qdrant
-
-Yapay Zekâ
-- Ollama
-- OpenAI API
-
-Diğer
-- Docker
-- Git
-- Swagger
+Aktif yeniden indeksleme kilidi süreç içindedir. Tek uygulama örneğinde yeterlidir; yatay ölçeklemede Redis/PostgreSQL tabanlı dağıtık kilit veya iş kuyruğu gerekir.

@@ -1,102 +1,101 @@
-// Yüklenen PDF'yi işler.
-// PDF'den metni çıkarır ve metni küçük parçalara ayırır.
-// Daha sonra embedding oluşturulacak yapıyı hazırlar.
-
-using UglyToad.PdfPig;
 using SmartDocsAI.API.Interfaces;
 using SmartDocsAI.API.Models;
+using UglyToad.PdfPig;
 
-namespace SmartDocsAI.API.Services
+namespace SmartDocsAI.API.Services;
+
+public sealed class DocumentProcessor : IDocumentProcessor
 {
-    public class DocumentProcessor : IDocumentProcessor
+    private const int ChunkSize = 800;
+    private const int Overlap = 150;
+    private const int DefaultMaxChunks = 2_000;
+
+    private readonly int _maxChunks;
+
+    public DocumentProcessor(IConfiguration configuration)
     {
-        private const int ChunkSize = 800; // Her bir parçanın karakter limiti
-        private const int Overlap = 150;    // Parçalar arası çakışan karakter miktarı
+        _maxChunks = Math.Clamp(
+            configuration.GetValue<int?>("DocumentProcessingSettings:MaxChunks") ?? DefaultMaxChunks,
+            1,
+            10_000);
+    }
 
-        public async Task<List<Chunk>> ProcessPdfAsync(Document document)
+    public Task<List<Chunk>> ProcessPdfAsync(
+        Document document,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(document);
+
+        var chunks = new List<Chunk>();
+        var chunkIndex = 0;
+
+        using var pdf = PdfDocument.Open(document.FilePath);
+        foreach (var page in pdf.GetPages())
         {
-            var chunks = new List<Chunk>();
-            int chunkIndex = 0;
+            cancellationToken.ThrowIfCancellationRequested();
 
-            // Arka planda CPU yoğunluklu bir işlem olacağı için Task.Run kullanarak asenkron çalıştırıyoruz.
-            await Task.Run(() =>
+            var pageText = CleanText(page.Text);
+            if (string.IsNullOrWhiteSpace(pageText))
             {
-                // PdfPig kütüphanesi ile PDF dosyasını açıyoruz
-                using (var pdf = PdfDocument.Open(document.FilePath))
+                continue;
+            }
+
+            foreach (var content in SplitIntoChunks(pageText, ChunkSize, Overlap))
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                if (chunks.Count >= _maxChunks)
                 {
-                    foreach (var page in pdf.GetPages())
-                    {
-                        // Sayfa metnini okuyoruz
-                        var pageText = page.Text;
-
-                        if (string.IsNullOrWhiteSpace(pageText))
-                            continue;
-
-                        // Sayfadaki metni temizleme (gereksiz boşlukları ve satır sonlarını düzenleme)
-                        pageText = CleanText(pageText);
-
-                        // Sayfa metnini örtüşmeli parçalara ayırıyoruz
-                        var textChunks = SplitIntoChunks(pageText, ChunkSize, Overlap);
-
-                        foreach (var content in textChunks)
-                        {
-                            chunks.Add(new Chunk
-                            {
-                                DocumentId = document.Id,
-                                ChunkIndex = chunkIndex++,
-                                Content = content,
-                                PageNumber = page.Number
-                            });
-                        }
-                    }
+                    throw new InvalidDataException(
+                        $"PDF güvenli işleme sınırını aştı. En fazla {_maxChunks} metin parçası oluşturulabilir.");
                 }
-            });
 
-            return chunks;
+                chunks.Add(new Chunk
+                {
+                    DocumentId = document.Id,
+                    ChunkIndex = chunkIndex++,
+                    Content = content,
+                    PageNumber = page.Number
+                });
+            }
         }
 
-        /// <summary>
-        /// Metindeki gereksiz boşlukları ve ardışık satır sonlarını temizler.
-        /// </summary>
-        private string CleanText(string text)
+        return Task.FromResult(chunks);
+    }
+
+    private static string CleanText(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
         {
-            return text.Replace("\r\n", " ")
-                       .Replace("\n", " ")
-                       .Replace("\t", " ")
-                       .Trim();
+            return string.Empty;
         }
 
-        /// <summary>
-        /// Kayar pencere (Sliding Window) tekniğiyle metni parçalara ayırır.
-        /// </summary>
-        private List<string> SplitIntoChunks(string text, int chunkSize, int overlap)
+        return string.Join(' ', text
+            .Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+    }
+
+    private static IEnumerable<string> SplitIntoChunks(string text, int chunkSize, int overlap)
+    {
+        if (string.IsNullOrEmpty(text))
         {
-            var chunks = new List<string>();
-            if (string.IsNullOrEmpty(text)) return chunks;
+            yield break;
+        }
 
-            // Metin belirtilen boyuttan kısaysa tek parça olarak döner.
-            if (text.Length <= chunkSize)
+        var step = chunkSize - overlap;
+        if (step <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(overlap), "Overlap must be smaller than chunk size.");
+        }
+
+        for (var start = 0; start < text.Length; start += step)
+        {
+            var length = Math.Min(chunkSize, text.Length - start);
+            yield return text.Substring(start, length);
+
+            if (start + length >= text.Length)
             {
-                chunks.Add(text);
-                return chunks;
+                yield break;
             }
-
-            int start = 0;
-            while (start < text.Length)
-            {
-                int end = Math.Min(start + chunkSize, text.Length);
-                var chunk = text.Substring(start, end - start);
-                chunks.Add(chunk);
-
-                // Dosya sonuna ulaştıysak döngüyü bitir.
-                if (end >= text.Length)
-                    break;
-
-                // Örtüşmeyi (Overlap) hesaba katarak yeni başlangıç noktasını belirle.
-                start += (chunkSize - overlap);
-            }
-
-            return chunks;
         }
     }
 }

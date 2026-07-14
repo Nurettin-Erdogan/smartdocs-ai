@@ -1,13 +1,36 @@
-import { FormEvent, useEffect, useMemo, useState } from 'react';
-import { api, ChatConversation, ChatResponse, DocumentItem } from './api';
+import {
+  FormEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState
+} from 'react';
+import {
+  api,
+  ChatConversation,
+  ChatHistorySummary,
+  ChatResponse,
+  DocumentItem,
+  setUnauthorizedHandler
+} from './api';
+import { ConversationThread } from './components/ConversationThread';
+import {
+  NotificationBanner,
+  type Notification
+} from './components/NotificationBanner';
+import {
+  clearSession,
+  loadSession,
+  saveSession,
+  type AppSession,
+  type SessionUser
+} from './session';
 
 type AuthMode = 'login' | 'register';
+type DocumentAction = { id: number; kind: 'delete' | 'reindex' } | null;
 
-type UserState = {
-  fullName: string;
-  email: string;
-  role?: string;
-};
+const MAX_PDF_SIZE = 20 * 1024 * 1024;
 
 const formatDate = (value: string) =>
   new Date(value).toLocaleString('tr-TR', {
@@ -23,262 +46,372 @@ const formatSize = (size: number) => {
 
 const formatIndexingStatus = (status: string) => {
   switch (status) {
-    case 'Ready':
-      return 'Hazır';
-    case 'Failed':
-      return 'İndekslenemedi';
-    case 'NoContent':
-      return 'Metin bulunamadı';
-    case 'Pending':
-      return 'İşleniyor';
-    default:
-      return status || 'Bilinmiyor';
+    case 'Ready': return 'Hazır';
+    case 'Failed': return 'İndekslenemedi';
+    case 'NoContent': return 'Metin bulunamadı';
+    case 'Pending': return 'İşleniyor';
+    default: return status || 'Bilinmiyor';
   }
 };
 
+const errorMessage = (error: unknown, fallback: string) =>
+  error instanceof Error ? error.message : fallback;
+
+const conversationTitle = (conversation: ChatHistorySummary) => {
+  const question = conversation.firstQuestion.trim();
+  if (!question) return `Sohbet #${conversation.conversationId}`;
+  return question.length > 42 ? `${question.slice(0, 42)}…` : question;
+};
+
 function App() {
+  const [session, setSession] = useState<AppSession | null>(() => loadSession());
   const [authMode, setAuthMode] = useState<AuthMode>('login');
-  const [user, setUser] = useState<UserState | null>(null);
-  const [token, setToken] = useState<string | null>(null);
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
-  const [history, setHistory] = useState<ChatConversation[]>([]);
+  const [history, setHistory] = useState<ChatHistorySummary[]>([]);
   const [selectedConversationId, setSelectedConversationId] = useState<number | null>(null);
+  const [selectedConversation, setSelectedConversation] = useState<ChatConversation | null>(null);
   const [question, setQuestion] = useState('');
-  const [answer, setAnswer] = useState('');
   const [sources, setSources] = useState<ChatResponse['sources']>([]);
   const [authForm, setAuthForm] = useState({ fullName: '', email: '', password: '' });
   const [loginForm, setLoginForm] = useState({ email: '', password: '' });
   const [uploadFile, setUploadFile] = useState<File | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [notice, setNotice] = useState('');
-  const [error, setError] = useState('');
+  const [notification, setNotification] = useState<Notification | null>(null);
+  const [authBusy, setAuthBusy] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [asking, setAsking] = useState(false);
+  const [conversationLoading, setConversationLoading] = useState(false);
+  const [documentAction, setDocumentAction] = useState<DocumentAction>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    const storedToken = localStorage.getItem('smartdocs_token');
-    const storedUser = localStorage.getItem('smartdocs_user');
-
-    if (storedToken && storedUser) {
-      setToken(storedToken);
-      setUser(JSON.parse(storedUser) as UserState);
-    }
+  const resetWorkspace = useCallback(() => {
+    setDocuments([]);
+    setHistory([]);
+    setSelectedConversationId(null);
+    setSelectedConversation(null);
+    setQuestion('');
+    setSources([]);
+    setUploadFile(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
   }, []);
 
-  useEffect(() => {
-    if (!token) return;
+  const expireSession = useCallback((message: string) => {
+    clearSession();
+    setSession(null);
+    resetWorkspace();
+    setNotification({ kind: 'error', message });
+  }, [resetWorkspace]);
 
-    void refreshData();
-  }, [token]);
+  useEffect(() => setUnauthorizedHandler(expireSession), [expireSession]);
+
+  useEffect(() => {
+    if (!notification) return;
+    const timer = window.setTimeout(() => setNotification(null), 5_000);
+    return () => window.clearTimeout(timer);
+  }, [notification]);
+
+  const refreshData = useCallback(async (selectLatestWhenEmpty = false) => {
+    if (!session) return;
+
+    setRefreshing(true);
+    try {
+      const [nextDocuments, nextHistory] = await Promise.all([
+        api.listDocuments(),
+        api.chatHistory()
+      ]);
+      setDocuments(nextDocuments);
+      setHistory(nextHistory);
+      setSelectedConversationId((currentId) => {
+        if (currentId !== null && nextHistory.some((item) => item.conversationId === currentId)) {
+          return currentId;
+        }
+        return selectLatestWhenEmpty ? nextHistory[0]?.conversationId ?? null : null;
+      });
+    } catch (error) {
+      setNotification({ kind: 'error', message: errorMessage(error, 'Veriler yüklenemedi.') });
+    } finally {
+      setRefreshing(false);
+    }
+  }, [session]);
+
+  useEffect(() => {
+    if (session) void refreshData(true);
+  }, [session, refreshData]);
+
+  useEffect(() => {
+    if (!session || selectedConversationId === null) {
+      setSelectedConversation(null);
+      setConversationLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    setConversationLoading(true);
+
+    void api.getConversation(selectedConversationId)
+      .then((conversation) => {
+        if (!cancelled) setSelectedConversation(conversation);
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          setNotification({
+            kind: 'error',
+            message: errorMessage(error, 'Sohbet yüklenemedi.')
+          });
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setConversationLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [session, selectedConversationId]);
 
   const dashboardStats = useMemo(() => {
-    const totalDocs = documents.length;
-    const totalConversations = history.length;
-    const totalMessages = history.reduce((count, item) => count + item.messages.length, 0);
-    const latestDoc = documents[0];
-
+    const totalMessages = history.reduce((count, item) => count + item.messageCount, 0);
     return [
-      { label: 'Toplam doküman', value: String(totalDocs) },
-      { label: 'Toplam sohbet', value: String(totalConversations) },
-      { label: 'Toplam mesaj', value: String(totalMessages) },
-      { label: 'Son yükleme', value: latestDoc ? latestDoc.title : 'Yok' }
+      { label: 'Toplam doküman', value: String(documents.length) },
+      { label: 'Son 50 sohbet', value: String(history.length) },
+      { label: 'Mesaj', value: String(totalMessages) },
+      { label: 'Son yükleme', value: documents[0]?.title ?? 'Yok' }
     ];
   }, [documents, history]);
 
-  const refreshData = async () => {
-    try {
-      setError('');
-      const [docs, chats] = await Promise.all([api.listDocuments(), api.chatHistory()]);
-      setDocuments(docs);
-      setHistory(chats);
-      if (!selectedConversationId && chats.length > 0) {
-        setSelectedConversationId(chats[0].conversationId);
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Veriler yüklenemedi.');
-    }
-  };
-
-  const persistAuth = (nextToken: string, nextUser: UserState) => {
-    localStorage.setItem('smartdocs_token', nextToken);
-    localStorage.setItem('smartdocs_user', JSON.stringify(nextUser));
-    setToken(nextToken);
-    setUser(nextUser);
+  const persistAuth = (token: string, user: SessionUser) => {
+    const nextSession = { token, user };
+    saveSession(nextSession);
+    setSession(nextSession);
   };
 
   const handleLogin = async (event: FormEvent) => {
     event.preventDefault();
+    setAuthBusy(true);
+    setNotification(null);
     try {
-      setBusy(true);
-      setError('');
       const result = await api.login(loginForm);
       persistAuth(result.token, {
         fullName: result.fullName,
         email: result.email,
         role: result.role
       });
-      setNotice('Giriş başarılı.');
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Giriş başarısız oldu.');
+      setNotification({ kind: 'success', message: 'Giriş başarılı.' });
+    } catch (error) {
+      setNotification({ kind: 'error', message: errorMessage(error, 'Giriş başarısız oldu.') });
     } finally {
-      setBusy(false);
+      setAuthBusy(false);
     }
   };
 
   const handleRegister = async (event: FormEvent) => {
     event.preventDefault();
+    setAuthBusy(true);
+    setNotification(null);
     try {
-      setBusy(true);
-      setError('');
       const result = await api.register(authForm);
       persistAuth(result.token, {
         fullName: result.fullName,
         email: result.email,
         role: result.role
       });
-      setNotice('Kayıt başarılı.');
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Kayıt başarısız oldu.');
+      setNotification({ kind: 'success', message: 'Hesabın oluşturuldu.' });
+    } catch (error) {
+      setNotification({ kind: 'error', message: errorMessage(error, 'Kayıt başarısız oldu.') });
     } finally {
-      setBusy(false);
+      setAuthBusy(false);
     }
+  };
+
+  const handleFileChange = (file: File | null) => {
+    setNotification(null);
+    if (!file) {
+      setUploadFile(null);
+      return;
+    }
+
+    if (!file.name.toLowerCase().endsWith('.pdf')) {
+      setUploadFile(null);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      setNotification({ kind: 'error', message: 'Yalnızca PDF dosyası seçebilirsin.' });
+      return;
+    }
+
+    if (file.size > MAX_PDF_SIZE) {
+      setUploadFile(null);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      setNotification({ kind: 'error', message: 'PDF dosyası en fazla 20 MB olabilir.' });
+      return;
+    }
+
+    setUploadFile(file);
   };
 
   const handleUpload = async () => {
     if (!uploadFile) {
-      setError('Önce bir PDF seçmelisin.');
+      setNotification({ kind: 'error', message: 'Önce bir PDF seçmelisin.' });
       return;
     }
 
+    setUploading(true);
+    setNotification(null);
     try {
-      setBusy(true);
-      setError('');
       const result = await api.uploadDocument(uploadFile);
-      setNotice(result.indexingStatus ?? 'Dosya yüklendi.');
+      setNotification({
+        kind: result.indexingStatus === 'Ready' ? 'success' : 'info',
+        message: result.indexingStatus === 'Ready'
+          ? 'PDF yüklendi ve sohbete hazır.'
+          : `PDF yüklendi: ${formatIndexingStatus(result.indexingStatus ?? 'Pending')}.`
+      });
       setUploadFile(null);
-      await refreshData();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Yükleme başarısız oldu.');
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      await refreshData(false);
+    } catch (error) {
+      setNotification({ kind: 'error', message: errorMessage(error, 'Yükleme başarısız oldu.') });
     } finally {
-      setBusy(false);
+      setUploading(false);
     }
   };
 
-  const handleDelete = async (id: number) => {
+  const handleDelete = async (document: DocumentItem) => {
+    const confirmed = window.confirm(
+      `“${document.title}” belgesi, dosyası ve arama indeksi kalıcı olarak silinsin mi?`
+    );
+    if (!confirmed) return;
+
+    setDocumentAction({ id: document.id, kind: 'delete' });
+    setNotification(null);
     try {
-      setBusy(true);
-      setError('');
-      await api.deleteDocument(id);
-      setNotice('Belge silindi.');
-      await refreshData();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Silme başarısız oldu.');
+      await api.deleteDocument(document.id);
+      setNotification({ kind: 'success', message: 'Belge silindi.' });
+      await refreshData(false);
+    } catch (error) {
+      setNotification({ kind: 'error', message: errorMessage(error, 'Belge silinemedi.') });
     } finally {
-      setBusy(false);
+      setDocumentAction(null);
     }
   };
 
   const handleReindex = async (id: number) => {
+    setDocumentAction({ id, kind: 'reindex' });
+    setNotification(null);
     try {
-      setBusy(true);
-      setError('');
       await api.reindexDocument(id);
-      setNotice('Belge yeniden indekslendi ve sohbete hazır.');
-      await refreshData();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Belge yeniden indekslenemedi.');
-      await refreshData();
+      setNotification({ kind: 'success', message: 'Belge yeniden indekslendi.' });
+      await refreshData(false);
+    } catch (error) {
+      setNotification({ kind: 'error', message: errorMessage(error, 'Belge yeniden indekslenemedi.') });
+      await refreshData(false);
     } finally {
-      setBusy(false);
+      setDocumentAction(null);
     }
   };
 
   const handleAsk = async (event: FormEvent) => {
     event.preventDefault();
     const trimmedQuestion = question.trim();
-
     if (!trimmedQuestion) {
-      setError('Soru yazmalısın.');
+      setNotification({ kind: 'error', message: 'Soru yazmalısın.' });
       return;
     }
 
+    if (!documents.some((document) => document.indexingStatus === 'Ready')) {
+      setNotification({ kind: 'error', message: 'Önce hazır durumunda bir PDF yüklemelisin.' });
+      return;
+    }
+
+    setAsking(true);
+    setNotification(null);
     try {
-      setBusy(true);
-      setError('');
       const result = await api.askChat({
         question: trimmedQuestion,
         conversationId: selectedConversationId
       });
-      setAnswer(result.answer);
-      setSources(result.sources);
+      const createdAt = new Date().toISOString();
+      setSelectedConversation((current) => ({
+        conversationId: result.conversationId,
+        createdAt: current?.conversationId === result.conversationId
+          ? current.createdAt
+          : createdAt,
+        messages: [
+          ...(current?.conversationId === result.conversationId ? current.messages : []),
+          {
+            id: -Date.now(),
+            question: trimmedQuestion,
+            answer: result.answer,
+            createdAt
+          }
+        ]
+      }));
       setSelectedConversationId(result.conversationId);
+      setSources(result.sources);
       setQuestion('');
-      setNotice('Soru gönderildi.');
-      await refreshData();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Soru gönderilemedi.');
+      setNotification({ kind: 'success', message: 'Cevap hazır.' });
+
+      await refreshData(false);
+      try {
+        setSelectedConversation(await api.getConversation(result.conversationId));
+      } catch {
+        // The optimistic message remains visible if refreshing the saved conversation fails.
+      }
+    } catch (error) {
+      setNotification({ kind: 'error', message: errorMessage(error, 'Soru gönderilemedi.') });
     } finally {
-      setBusy(false);
+      setAsking(false);
     }
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('smartdocs_token');
-    localStorage.removeItem('smartdocs_user');
-    setToken(null);
-    setUser(null);
-    setDocuments([]);
-    setHistory([]);
-    setSelectedConversationId(null);
-    setQuestion('');
-    setAnswer('');
-    setSources([]);
-    setNotice('Çıkış yapıldı.');
-  };
-
-  const handleSelectConversation = (conversation: ChatConversation) => {
-    const latestMessage = conversation.messages[conversation.messages.length - 1];
-
-    setSelectedConversationId(conversation.conversationId);
-    setAnswer(latestMessage?.answer ?? '');
-    setSources([]);
-    setError('');
-    setNotice('');
+    clearSession();
+    setSession(null);
+    resetWorkspace();
+    setNotification({ kind: 'info', message: 'Çıkış yapıldı.' });
   };
 
   const handleNewConversation = () => {
     setSelectedConversationId(null);
-    setAnswer('');
+    setSelectedConversation(null);
     setSources([]);
     setQuestion('');
-    setError('');
-    setNotice('Yeni sohbet başlatıldı.');
+    setNotification({ kind: 'info', message: 'Yeni sohbet hazır.' });
   };
 
-  const activeConversation = history.find((item) => item.conversationId === selectedConversationId) ?? history[0];
-
-  if (!token || !user) {
+  if (!session) {
     return (
       <div className="auth-shell">
         <div className="auth-backdrop" />
         <main className="auth-card">
           <section className="hero-block">
             <div className="brand-pill">SmartDocs AI</div>
-            <h1>PDF belgelerini yükle, sor, kaynakla cevap al.</h1>
+            <h1>PDF belgelerini yükle, sor, kaynaklı cevap al.</h1>
             <p>
-              Yerel Ollama, Qdrant ve ASP.NET Core tabanlı çalışma alanı için sade ama güçlü bir giriş ekranı.
+              Belgelerin kendi altyapında kalır; SmartDocs AI yalnızca yüklediğin içeriklerden
+              anlamlı kaynaklar bulup Türkçe cevap üretir.
             </p>
             <div className="feature-row">
-              <span>JWT giriş</span>
-              <span>PDF yükleme</span>
-              <span>Chat geçmişi</span>
+              <span>Kullanıcıya özel</span>
+              <span>Kaynak gösterimi</span>
+              <span>Yerel yapay zekâ</span>
             </div>
           </section>
 
-          <section className="panel auth-panel">
+          <section className="panel auth-panel" aria-labelledby="auth-title">
+            <h2 id="auth-title" className="sr-only">
+              {authMode === 'login' ? 'Giriş yap' : 'Hesap oluştur'}
+            </h2>
             <div className="mode-switch">
-              <button className={authMode === 'login' ? 'active' : ''} onClick={() => setAuthMode('login')} type="button">
+              <button
+                className={authMode === 'login' ? 'active' : ''}
+                onClick={() => setAuthMode('login')}
+                type="button"
+              >
                 Giriş Yap
               </button>
-              <button className={authMode === 'register' ? 'active' : ''} onClick={() => setAuthMode('register')} type="button">
+              <button
+                className={authMode === 'register' ? 'active' : ''}
+                onClick={() => setAuthMode('register')}
+                type="button"
+              >
                 Kayıt Ol
               </button>
             </div>
@@ -287,28 +420,59 @@ function App() {
               {authMode === 'register' && (
                 <label>
                   Ad Soyad
-                  <input value={authForm.fullName} onChange={(e) => setAuthForm({ ...authForm, fullName: e.target.value })} placeholder="Ad Soyad" />
+                  <input
+                    value={authForm.fullName}
+                    onChange={(event) => setAuthForm({ ...authForm, fullName: event.target.value })}
+                    autoComplete="name"
+                    maxLength={100}
+                    required
+                  />
                 </label>
               )}
               <label>
                 E-posta
-                <input value={authMode === 'login' ? loginForm.email : authForm.email} onChange={(e) => authMode === 'login' ? setLoginForm({ ...loginForm, email: e.target.value }) : setAuthForm({ ...authForm, email: e.target.value })} type="email" placeholder="ornek@firma.com" />
+                <input
+                  value={authMode === 'login' ? loginForm.email : authForm.email}
+                  onChange={(event) => authMode === 'login'
+                    ? setLoginForm({ ...loginForm, email: event.target.value })
+                    : setAuthForm({ ...authForm, email: event.target.value })}
+                  type="email"
+                  autoComplete="email"
+                  placeholder="ornek@firma.com"
+                  required
+                />
               </label>
               <label>
                 Şifre
-                <input value={authMode === 'login' ? loginForm.password : authForm.password} onChange={(e) => authMode === 'login' ? setLoginForm({ ...loginForm, password: e.target.value }) : setAuthForm({ ...authForm, password: e.target.value })} type="password" placeholder="••••••••" />
+                <input
+                  value={authMode === 'login' ? loginForm.password : authForm.password}
+                  onChange={(event) => authMode === 'login'
+                    ? setLoginForm({ ...loginForm, password: event.target.value })
+                    : setAuthForm({ ...authForm, password: event.target.value })}
+                  type="password"
+                  autoComplete={authMode === 'login' ? 'current-password' : 'new-password'}
+                  minLength={authMode === 'register' ? 8 : undefined}
+                  maxLength={128}
+                  required
+                />
               </label>
-              <button disabled={busy} className="primary-btn" type="submit">
-                {busy ? 'İşleniyor...' : authMode === 'login' ? 'Giriş Yap' : 'Hesap Oluştur'}
+              <button disabled={authBusy} className="primary-btn" type="submit">
+                {authBusy ? 'İşleniyor…' : authMode === 'login' ? 'Giriş Yap' : 'Hesap Oluştur'}
               </button>
             </form>
-
-            {(error || notice) && <div className={error ? 'feedback error' : 'feedback success'}>{error || notice}</div>}
           </section>
         </main>
+
+        <NotificationBanner
+          notification={notification}
+          onDismiss={() => setNotification(null)}
+        />
       </div>
     );
   }
+
+  const user = session.user;
+  const anyDocumentAction = documentAction !== null;
 
   return (
     <div className="app-shell">
@@ -324,7 +488,7 @@ function App() {
           {dashboardStats.map((item) => (
             <article key={item.label} className="stat-card">
               <span>{item.label}</span>
-              <strong>{item.value}</strong>
+              <strong title={item.value}>{item.value}</strong>
             </article>
           ))}
         </div>
@@ -332,11 +496,33 @@ function App() {
         <div className="panel-subsection">
           <div className="section-head">
             <h3>Belge yükle</h3>
-            <button type="button" className="ghost-btn" onClick={refreshData}>Yenile</button>
+            <button
+              type="button"
+              className="ghost-btn"
+              onClick={() => void refreshData(false)}
+              disabled={refreshing}
+            >
+              {refreshing ? 'Yenileniyor…' : 'Yenile'}
+            </button>
           </div>
-          <input type="file" accept="application/pdf" onChange={(e) => setUploadFile(e.target.files?.[0] ?? null)} />
-          <button type="button" className="primary-btn" onClick={handleUpload} disabled={busy}>
-            PDF Yükle
+          <label className="file-label">
+            PDF seç
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="application/pdf,.pdf"
+              aria-describedby="upload-help"
+              onChange={(event) => handleFileChange(event.target.files?.[0] ?? null)}
+            />
+          </label>
+          <small id="upload-help" className="muted">En fazla 20 MB · yalnızca PDF</small>
+          <button
+            type="button"
+            className="primary-btn"
+            onClick={() => void handleUpload()}
+            disabled={uploading || !uploadFile}
+          >
+            {uploading ? 'İşleniyor…' : 'PDF Yükle'}
           </button>
         </div>
 
@@ -344,7 +530,7 @@ function App() {
           <div className="section-head">
             <h3>Sohbet geçmişi</h3>
             <button type="button" className="ghost-btn" onClick={handleNewConversation}>
-              Yeni · {history.length}
+              Yeni
             </button>
           </div>
           <div className="scroll-list">
@@ -354,17 +540,23 @@ function App() {
                 key={conversation.conversationId}
                 type="button"
                 className={`history-item ${selectedConversationId === conversation.conversationId ? 'active' : ''}`}
-                onClick={() => handleSelectConversation(conversation)}
+                onClick={() => {
+                  setSources([]);
+                  setSelectedConversationId(conversation.conversationId);
+                }}
+                aria-current={selectedConversationId === conversation.conversationId ? 'true' : undefined}
               >
-                <strong>Sohbet #{conversation.conversationId}</strong>
+                <strong>{conversationTitle(conversation)}</strong>
                 <span>{formatDate(conversation.createdAt)}</span>
-                <small>{conversation.messages.length} mesaj</small>
+                <small>{conversation.messageCount} mesaj</small>
               </button>
             ))}
           </div>
         </div>
 
-        <button type="button" className="ghost-btn danger" onClick={handleLogout}>Çıkış Yap</button>
+        <button type="button" className="ghost-btn danger" onClick={handleLogout}>
+          Çıkış Yap
+        </button>
       </aside>
 
       <main className="main-grid">
@@ -372,7 +564,7 @@ function App() {
           <div className="section-head">
             <div>
               <h3>Dokümanlar</h3>
-              <p className="muted">Yüklenen PDF’ler ve işlem durumu.</p>
+              <p className="muted">Yüklenen PDF’ler ve indeksleme durumu.</p>
             </div>
             <span className="count-badge">{documents.length}</span>
           </div>
@@ -386,21 +578,34 @@ function App() {
                   <p>{document.fileName}</p>
                 </div>
                 <div className="doc-meta">
-                  <span>{document.fileType}</span>
+                  <span>{formatSize(document.fileSize)}</span>
                   <span className={`status-pill status-${document.indexingStatus.toLowerCase()}`}>
                     {formatIndexingStatus(document.indexingStatus)}
                   </span>
-                  <span>{formatSize(document.fileSize)}</span>
                   <span>{formatDate(document.uploadDate)}</span>
                 </div>
                 <div className="doc-actions">
-                  {(document.indexingStatus === 'Failed' || document.indexingStatus === 'Pending') && (
-                    <button type="button" className="ghost-btn retry" onClick={() => handleReindex(document.id)} disabled={busy}>
-                      Tekrar indeksle
+                  {document.indexingStatus === 'Failed' && (
+                    <button
+                      type="button"
+                      className="ghost-btn retry"
+                      onClick={() => void handleReindex(document.id)}
+                      disabled={anyDocumentAction}
+                    >
+                      {documentAction?.id === document.id && documentAction.kind === 'reindex'
+                        ? 'İndeksleniyor…'
+                        : 'Tekrar indeksle'}
                     </button>
                   )}
-                  <button type="button" className="ghost-btn danger" onClick={() => handleDelete(document.id)} disabled={busy}>
-                    Sil
+                  <button
+                    type="button"
+                    className="ghost-btn danger"
+                    onClick={() => void handleDelete(document)}
+                    disabled={anyDocumentAction}
+                  >
+                    {documentAction?.id === document.id && documentAction.kind === 'delete'
+                      ? 'Siliniyor…'
+                      : 'Sil'}
                   </button>
                 </div>
               </article>
@@ -411,48 +616,60 @@ function App() {
         <section className="panel chat-panel">
           <div className="section-head">
             <div>
-              <h3>AI Chat</h3>
-              <p className="muted">Soru sor, ilgili PDF parçalarından cevap al.</p>
+              <h3>Belge Asistanı</h3>
+              <p className="muted">Soru sor; yanıtı ve kullanılan kaynakları birlikte gör.</p>
             </div>
             <span className="count-badge">{selectedConversationId ?? 'Yeni'}</span>
           </div>
 
+          <ConversationThread
+            conversation={selectedConversation}
+            isLoading={conversationLoading}
+            isNewConversation={selectedConversationId === null}
+          />
+
           <form onSubmit={handleAsk} className="chat-form">
+            <label htmlFor="chat-question" className="sr-only">Sorun</label>
             <textarea
+              id="chat-question"
               value={question}
-              onChange={(e) => setQuestion(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault();
-                  e.currentTarget.form?.requestSubmit();
+              onChange={(event) => setQuestion(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' && !event.shiftKey) {
+                  event.preventDefault();
+                  event.currentTarget.form?.requestSubmit();
                 }
               }}
-              placeholder="Sorunu yaz... Enter ile gönder"
-              rows={5}
+              placeholder="Sorunu yaz… Enter ile gönder, Shift+Enter ile satır ekle"
+              rows={4}
+              maxLength={2_000}
+              disabled={asking}
             />
-            <button className="primary-btn" type="submit" disabled={busy}>
-              {busy ? 'Cevap hazırlanıyor...' : 'Soruyu Gönder'}
-            </button>
-          </form>
-
-          <div className="answer-box">
-            <div className="section-head compact">
-              <h4>Cevap</h4>
-              <span>{activeConversation ? `Sohbet #${activeConversation.conversationId}` : 'Bekleniyor'}</span>
+            <div className="composer-footer">
+              <small className="muted">{question.length}/2000</small>
+              <button className="primary-btn" type="submit" disabled={asking || !question.trim()}>
+                {asking ? 'Cevap hazırlanıyor…' : 'Soruyu Gönder'}
+              </button>
             </div>
-            <p>{answer || 'Henüz bir soru sorulmadı.'}</p>
-          </div>
+          </form>
 
           <div className="sources-box">
             <div className="section-head compact">
-              <h4>Kaynaklar</h4>
+              <h4>Son cevabın kaynakları</h4>
               <span>{sources.length}</span>
             </div>
-            {sources.length === 0 && <p className="muted">Cevap verildiğinde burada ilgili parça listesi görünür.</p>}
+            {sources.length === 0 && (
+              <p className="muted">
+                Yeni bir cevap üretildiğinde kullanılan belge parçaları burada görünür.
+              </p>
+            )}
             <div className="source-list">
               {sources.map((source) => (
-                <article key={`${source.documentId}-${source.chunkIndex}-${source.pageNumber}`} className="source-card">
-                  <strong>{source.title ?? `Belge ${source.documentId}`} · Sayfa {source.pageNumber}</strong>
+                <article
+                  key={`${source.documentId}-${source.chunkIndex}-${source.pageNumber}`}
+                  className="source-card"
+                >
+                  <strong>{source.title} · Sayfa {source.pageNumber}</strong>
                   <p>{source.content}</p>
                   <small>Parça {source.chunkIndex} · Skor {source.score.toFixed(3)}</small>
                 </article>
@@ -462,8 +679,10 @@ function App() {
         </section>
       </main>
 
-      {notice && <div className="toast success">{notice}</div>}
-      {error && <div className="toast error">{error}</div>}
+      <NotificationBanner
+        notification={notification}
+        onDismiss={() => setNotification(null)}
+      />
     </div>
   );
 }

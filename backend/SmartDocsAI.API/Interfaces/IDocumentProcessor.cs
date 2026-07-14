@@ -9,6 +9,6 @@ namespace SmartDocsAI.API.Interfaces
         /// <summary>
         /// Yüklenen belgenin (PDF) içeriğini okur, parçalara (Chunk) ayırır ve Chunk listesini döner.
         /// </summary>
-        Task<List<Chunk>> ProcessPdfAsync(Document document);
+        Task<List<Chunk>> ProcessPdfAsync(Document document, CancellationToken cancellationToken = default);
     }
 }

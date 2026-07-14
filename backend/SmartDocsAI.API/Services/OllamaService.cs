@@ -1,96 +1,85 @@
-using System;
-using System.Net.Http;
-using System.Text;
-using System.Text.Json;
+using System.Net.Http.Json;
 using System.Text.Json.Serialization;
-using System.Threading.Tasks;
-using Microsoft.Extensions.Configuration;
 using SmartDocsAI.API.Interfaces;
 
-namespace SmartDocsAI.API.Services
+namespace SmartDocsAI.API.Services;
+
+public sealed class OllamaService : IOllamaService
 {
-    public class OllamaService : IOllamaService
+    private readonly HttpClient _httpClient;
+    private readonly string _embeddingModel;
+    private readonly string _chatModel;
+
+    public OllamaService(HttpClient httpClient, IConfiguration configuration)
     {
-        private readonly HttpClient _httpClient;
-        private readonly IConfiguration _config;
-        private readonly string _embeddingModel;
-        private readonly string _chatModel;
+        _httpClient = httpClient;
+        _httpClient.BaseAddress = new Uri(
+            configuration["OllamaSettings:BaseUrl"] ?? "http://localhost:11434");
 
-        public OllamaService(HttpClient httpClient, IConfiguration config)
-        {
-            _httpClient = httpClient;
-            _config = config;
-
-            // appsettings.json'dan Ollama bağlantı adresini alıyoruz.
-            var baseUrl = _config["OllamaSettings:BaseUrl"] ?? "http://localhost:11434";
-            _httpClient.BaseAddress = new Uri(baseUrl);
-
-            // Embedding ve yanıt üretimi için ayrı modeller kullanılabilir.
-            _embeddingModel = _config["OllamaSettings:EmbeddingModel"] ?? "nomic-embed-text";
-            _chatModel = _config["OllamaSettings:ChatModel"] ?? "llama3";
-        }
-
-        public async Task<float[]> GetEmbeddingAsync(string text)
-        {
-            var requestBody = new
-            {
-                model = _embeddingModel,
-                prompt = text
-            };
-
-            // İsteği JSON formatına serileştiriyoruz.
-            var jsonContent = new StringContent(
-                JsonSerializer.Serialize(requestBody),
-                Encoding.UTF8,
-                "application/json"
-            );
-
-            // Ollama yerel servisinin /api/embeddings ucuna istek atıyoruz.
-            var response = await _httpClient.PostAsync("/api/embeddings", jsonContent);
-            response.EnsureSuccessStatusCode();
-
-            var responseString = await response.Content.ReadAsStringAsync();
-
-            // Gelen cevabı C# nesnesine dönüştürüyoruz (De-serileştirme).
-            var result = JsonSerializer.Deserialize<OllamaEmbeddingResponse>(responseString);
-
-            return result?.Embedding ?? throw new Exception("Ollama'dan embedding alınamadı.");
-        }
-
-        public async Task<string> GenerateAnswerAsync(string prompt)
-        {
-            var requestBody = new
-            {
-                model = _chatModel,
-                prompt = prompt,
-                stream = false
-            };
-
-            var jsonContent = new StringContent(
-                JsonSerializer.Serialize(requestBody),
-                Encoding.UTF8,
-                "application/json"
-            );
-
-            var response = await _httpClient.PostAsync("/api/generate", jsonContent);
-            response.EnsureSuccessStatusCode();
-
-            var responseString = await response.Content.ReadAsStringAsync();
-            var result = JsonSerializer.Deserialize<OllamaGenerateResponse>(responseString);
-
-            return result?.Response ?? throw new Exception("Ollama'dan yanıt alınamadı.");
-        }
+        _embeddingModel = configuration["OllamaSettings:EmbeddingModel"] ?? "nomic-embed-text";
+        _chatModel = configuration["OllamaSettings:ChatModel"] ?? "llama3";
     }
 
-    public class OllamaEmbeddingResponse
+    public async Task<float[]> GetEmbeddingAsync(
+        string text,
+        CancellationToken cancellationToken = default)
     {
-        [JsonPropertyName("embedding")]
-        public float[] Embedding { get; set; } = Array.Empty<float>();
+        ArgumentException.ThrowIfNullOrWhiteSpace(text);
+
+        using var response = await _httpClient.PostAsJsonAsync(
+            "/api/embed",
+            new { model = _embeddingModel, input = text, truncate = true },
+            cancellationToken);
+
+        response.EnsureSuccessStatusCode();
+
+        var result = await response.Content.ReadFromJsonAsync<OllamaEmbeddingResponse>(
+            cancellationToken: cancellationToken);
+
+        if (result?.Embeddings is not { Length: > 0 } embeddings ||
+            embeddings[0] is not { Length: > 0 } embedding ||
+            embedding.Any(value => !float.IsFinite(value)))
+        {
+            throw new InvalidOperationException("Ollama geçerli bir embedding döndürmedi.");
+        }
+
+        return embedding;
     }
 
-    public class OllamaGenerateResponse
+    public async Task<string> GenerateAnswerAsync(
+        string prompt,
+        CancellationToken cancellationToken = default)
     {
-        [JsonPropertyName("response")]
-        public string Response { get; set; } = string.Empty;
+        ArgumentException.ThrowIfNullOrWhiteSpace(prompt);
+
+        using var response = await _httpClient.PostAsJsonAsync(
+            "/api/generate",
+            new { model = _chatModel, prompt, stream = false },
+            cancellationToken);
+
+        response.EnsureSuccessStatusCode();
+
+        var result = await response.Content.ReadFromJsonAsync<OllamaGenerateResponse>(
+            cancellationToken: cancellationToken);
+        var answer = result?.Response?.Trim();
+
+        if (string.IsNullOrWhiteSpace(answer))
+        {
+            throw new InvalidOperationException("Ollama boş bir cevap döndürdü.");
+        }
+
+        return answer;
     }
+}
+
+public sealed class OllamaEmbeddingResponse
+{
+    [JsonPropertyName("embeddings")]
+    public float[][]? Embeddings { get; init; }
+}
+
+public sealed class OllamaGenerateResponse
+{
+    [JsonPropertyName("response")]
+    public string? Response { get; init; }
 }

@@ -1,17 +1,17 @@
 using Microsoft.AspNetCore.Mvc;
 
-namespace SmartDocsAI.API.Controllers
+namespace SmartDocsAI.API.Controllers;
+
+[ApiController]
+[Route("api/[controller]")]
+public sealed class HomeController : ControllerBase
 {
-    // Backend'in çalışıp çalışmadığını kontrol eden basit endpoint.
-    [ApiController]
-    [Route("api/[controller]")]
-    public class HomeController : ControllerBase
+    [HttpGet]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public IActionResult Get() => Ok(new
     {
-        // GET /api/home isteğine 200 OK cevabı döndürür.
-        [HttpGet]
-        public IActionResult Get()
-        {
-            return Ok("SmartDocs AI Backend Çalışıyor!");
-        }
-    }
+        Service = "SmartDocs AI API",
+        Status = "ok",
+        Timestamp = DateTimeOffset.UtcNow
+    });
 }

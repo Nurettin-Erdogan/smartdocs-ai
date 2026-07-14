@@ -43,6 +43,25 @@ button {
   cursor: pointer;
 }
 
+button:disabled,
+input:disabled,
+textarea:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 input,
 textarea {
   width: 100%;
@@ -250,6 +269,11 @@ label {
   background: rgba(251, 113, 133, 0.14);
 }
 
+.toast.info {
+  color: #dbeafe;
+  background: rgba(125, 211, 252, 0.14);
+}
+
 .app-shell {
   min-height: 100vh;
   padding: 1.25rem;
@@ -436,9 +460,89 @@ label {
   background: rgba(125, 211, 252, 0.08);
 }
 
+.history-item strong,
+.history-item span,
+.history-item small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-label {
+  gap: 0.55rem;
+}
+
+.conversation-thread {
+  min-height: 300px;
+  max-height: 52vh;
+  overflow-y: auto;
+  display: grid;
+  align-content: start;
+  gap: 1rem;
+  padding: 0.25rem;
+  scroll-behavior: smooth;
+}
+
+.conversation-empty {
+  align-self: center;
+  justify-self: center;
+  max-width: 36ch;
+  text-align: center;
+  display: grid;
+  gap: 0.4rem;
+  padding: 2rem 1rem;
+}
+
+.message-pair {
+  display: grid;
+  gap: 0.7rem;
+}
+
+.chat-message {
+  max-width: min(88%, 760px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 20px;
+  padding: 0.9rem 1rem;
+}
+
+.chat-message p {
+  margin: 0.55rem 0 0;
+  line-height: 1.65;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.user-message {
+  justify-self: end;
+  background: linear-gradient(135deg, rgba(125, 211, 252, 0.14), rgba(139, 92, 246, 0.13));
+}
+
+.assistant-message {
+  justify-self: start;
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.message-head,
+.composer-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.message-head time,
+.source-card small {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
 .chat-form {
   display: grid;
   gap: 0.8rem;
+}
+
+.composer-footer .primary-btn {
+  min-width: 180px;
 }
 
 .answer-box,
@@ -458,6 +562,21 @@ label {
   bottom: 1.2rem;
   max-width: 360px;
   box-shadow: var(--shadow);
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.toast button {
+  flex: 0 0 auto;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+  color: inherit;
+  width: 2rem;
+  height: 2rem;
 }
 
 @media (max-width: 1080px) {
@@ -469,6 +588,11 @@ label {
 
   .sidebar {
     position: static;
+  }
+
+  .documents-panel,
+  .chat-panel {
+    min-height: auto;
   }
 }
 
@@ -484,6 +608,20 @@ label {
 
   .doc-row {
     grid-template-columns: 1fr;
+  }
+
+  .conversation-thread {
+    min-height: 260px;
+    max-height: 60vh;
+  }
+
+  .composer-footer {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .composer-footer .primary-btn {
+    width: 100%;
   }
 
   .toast {
