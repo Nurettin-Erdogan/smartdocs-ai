@@ -1,4 +1,3 @@
-using System.Collections.Concurrent;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -19,13 +18,12 @@ public sealed class DocumentsController : ControllerBase
     private const long MaxFileSize = 20 * 1024 * 1024;
     private const long MaxRequestSize = MaxFileSize + (512 * 1024);
     private const int EmbeddingBatchSize = 4;
-    private static readonly ConcurrentDictionary<int, byte> ActiveReindexJobs = new();
-
     private readonly AppDbContext _context;
     private readonly IWebHostEnvironment _environment;
     private readonly IDocumentProcessor _documentProcessor;
     private readonly IOllamaService _ollamaService;
     private readonly IQdrantService _qdrantService;
+    private readonly IDocumentDeletionService _documentDeletionService;
     private readonly ILogger<DocumentsController> _logger;
 
     public DocumentsController(
@@ -34,6 +32,7 @@ public sealed class DocumentsController : ControllerBase
         IDocumentProcessor documentProcessor,
         IOllamaService ollamaService,
         IQdrantService qdrantService,
+        IDocumentDeletionService documentDeletionService,
         ILogger<DocumentsController> logger)
     {
         _context = context;
@@ -41,6 +40,7 @@ public sealed class DocumentsController : ControllerBase
         _documentProcessor = documentProcessor;
         _ollamaService = ollamaService;
         _qdrantService = qdrantService;
+        _documentDeletionService = documentDeletionService;
         _logger = logger;
     }
 
@@ -211,12 +211,8 @@ public sealed class DocumentsController : ControllerBase
             return Unauthorized(new { Message = "Kullanıcı oturumu geçersiz." });
         }
 
-        if (ActiveReindexJobs.ContainsKey(id))
-        {
-            return Conflict(new { Message = "İndeksleme sürerken belge silinemez." });
-        }
-
         var document = await _context.Documents
+            .AsNoTracking()
             .FirstOrDefaultAsync(
                 item => item.Id == id && item.UserId == userId,
                 cancellationToken);
@@ -226,34 +222,55 @@ public sealed class DocumentsController : ControllerBase
             return NotFound(new { Message = "Belge bulunamadı veya bu belge üzerinde işlem yapma yetkiniz yok." });
         }
 
+        if (document.IndexingStatus == "Pending")
+        {
+            return Conflict(new { Message = "İndeksleme sürerken belge silinemez." });
+        }
+
+        if (document.IndexingStatus != "Deleting")
+        {
+            var transitioned = await _context.Documents
+                .Where(item =>
+                    item.Id == document.Id &&
+                    item.UserId == userId &&
+                    item.IndexingStatus == document.IndexingStatus)
+                .ExecuteUpdateAsync(
+                    setters => setters
+                        .SetProperty(item => item.IndexingStatus, "Deleting")
+                        .SetProperty(item => item.IndexingError, (string?)null),
+                    cancellationToken);
+
+            if (transitioned == 0)
+            {
+                return Conflict(new { Message = "Belge üzerinde başka bir işlem devam ediyor." });
+            }
+        }
+
         try
         {
-            await _qdrantService.DeleteDocumentChunksAsync(document.Id, cancellationToken);
+            await _documentDeletionService.DeleteAsync(document.Id, cancellationToken);
         }
-        catch (Exception exception) when (
-            exception is HttpRequestException or TaskCanceledException)
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
-            if (document.IndexingStatus == "Ready")
-            {
-                _logger.LogError(exception, "Qdrant cleanup failed for document {DocumentId}.", document.Id);
-                return StatusCode(
-                    StatusCodes.Status503ServiceUnavailable,
-                    new { Message = "Belge şu anda silinemiyor. Qdrant servisine ulaşılamadı." });
-            }
-
-            _logger.LogWarning(
+            throw;
+        }
+        catch (Exception exception)
+        {
+            _logger.LogError(
                 exception,
-                "Unindexed document {DocumentId} is being removed while Qdrant is unavailable.",
+                "Document {DocumentId} deletion was queued for retry.",
                 document.Id);
-        }
+            var error = LimitIndexingError(exception);
+            await _context.Documents
+                .Where(item => item.Id == document.Id && item.IndexingStatus == "Deleting")
+                .ExecuteUpdateAsync(
+                    setters => setters.SetProperty(item => item.IndexingError, error),
+                    CancellationToken.None);
 
-        if (System.IO.File.Exists(document.FilePath))
-        {
-            System.IO.File.Delete(document.FilePath);
+            return StatusCode(
+                StatusCodes.Status503ServiceUnavailable,
+                new { Message = "Belge silme işlemi kuyruğa alındı ve otomatik olarak tekrar denenecek." });
         }
-
-        _context.Documents.Remove(document);
-        await _context.SaveChangesAsync(cancellationToken);
 
         return Ok(new { Message = "Belge başarıyla silindi." });
     }
@@ -267,76 +284,87 @@ public sealed class DocumentsController : ControllerBase
             return Unauthorized(new { Message = "Kullanıcı oturumu geçersiz." });
         }
 
-        if (!ActiveReindexJobs.TryAdd(id, 0))
+        var documentSnapshot = await _context.Documents
+            .AsNoTracking()
+            .FirstOrDefaultAsync(
+                item => item.Id == id && item.UserId == userId,
+                cancellationToken);
+
+        if (documentSnapshot is null)
         {
-            return Conflict(new { Message = "Bu belge için indeksleme zaten devam ediyor." });
+            return NotFound(new { Message = "Belge bulunamadı veya bu belge üzerinde işlem yapma yetkiniz yok." });
+        }
+
+        if (documentSnapshot.IndexingStatus is "Pending" or "Deleting")
+        {
+            return Conflict(new { Message = "Bu belge üzerinde başka bir işlem devam ediyor." });
+        }
+
+        var previousStatus = documentSnapshot.IndexingStatus;
+        var transitioned = await _context.Documents
+            .Where(item =>
+                item.Id == id &&
+                item.UserId == userId &&
+                item.IndexingStatus == previousStatus)
+            .ExecuteUpdateAsync(
+                setters => setters
+                    .SetProperty(item => item.IndexingStatus, "Pending")
+                    .SetProperty(item => item.IndexingError, (string?)null),
+                cancellationToken);
+
+        if (transitioned == 0)
+        {
+            return Conflict(new { Message = "Bu belge üzerinde başka bir işlem devam ediyor." });
+        }
+
+        var document = await _context.Documents
+            .Include(item => item.Chunks)
+            .FirstOrDefaultAsync(
+                item => item.Id == id && item.UserId == userId,
+                cancellationToken);
+
+        if (document is null)
+        {
+            return NotFound(new { Message = "Belge bulunamadı." });
+        }
+
+        var chunks = document.Chunks.OrderBy(chunk => chunk.ChunkIndex).ToList();
+        if (chunks.Count == 0)
+        {
+            document.IndexingStatus = "NoContent";
+            document.IndexingError = "Belgeden işlenecek metin çıkarılamadı.";
+            await _context.SaveChangesAsync(cancellationToken);
+            return BadRequest(new { Message = document.IndexingError });
         }
 
         try
         {
-            var document = await _context.Documents
-                .Include(item => item.Chunks)
-                .FirstOrDefaultAsync(
-                    item => item.Id == id && item.UserId == userId,
-                    cancellationToken);
-
-            if (document is null)
-            {
-                return NotFound(new { Message = "Belge bulunamadı veya bu belge üzerinde işlem yapma yetkiniz yok." });
-            }
-
-            if (document.IndexingStatus == "Pending")
-            {
-                return Conflict(new { Message = "Bu belge için indeksleme zaten devam ediyor." });
-            }
-
-            var chunks = document.Chunks.OrderBy(chunk => chunk.ChunkIndex).ToList();
-            if (chunks.Count == 0)
-            {
-                document.IndexingStatus = "NoContent";
-                document.IndexingError = "Belgeden işlenecek metin çıkarılamadı.";
-                await _context.SaveChangesAsync(cancellationToken);
-                return BadRequest(new { Message = document.IndexingError });
-            }
-
-            var previousStatus = document.IndexingStatus;
-            document.IndexingStatus = "Pending";
-            document.IndexingError = null;
+            await IndexDocumentAsync(document, chunks, cancellationToken);
             await _context.SaveChangesAsync(cancellationToken);
-
-            try
-            {
-                await IndexDocumentAsync(document, chunks, cancellationToken);
-                await _context.SaveChangesAsync(cancellationToken);
-                return Ok(ToDocumentDto(document));
-            }
-            catch (OperationCanceledException)
-            {
-                document.IndexingStatus = previousStatus == "Ready" ? "Ready" : "Failed";
-                document.IndexingError = "Yeniden indeksleme isteği iptal edildi; önceki indeks korundu.";
-                await TrySaveIndexingStateAsync();
-                throw;
-            }
-            catch (Exception exception)
-            {
-                _logger.LogError(exception, "Document {DocumentId} could not be reindexed.", document.Id);
-                document.IndexingStatus = previousStatus == "Ready" ? "Ready" : "Failed";
-                document.IndexingError = LimitIndexingError(exception);
-                await _context.SaveChangesAsync(CancellationToken.None);
-
-                return StatusCode(
-                    StatusCodes.Status503ServiceUnavailable,
-                    new
-                    {
-                        Message = previousStatus == "Ready"
-                            ? "Yeniden indeksleme başarısız oldu; çalışan önceki indeks korundu."
-                            : "Belge indekslenemedi. Ollama ve Qdrant servislerini kontrol edin."
-                    });
-            }
+            return Ok(ToDocumentDto(document));
         }
-        finally
+        catch (OperationCanceledException)
         {
-            ActiveReindexJobs.TryRemove(id, out _);
+            document.IndexingStatus = previousStatus == "Ready" ? "Ready" : "Failed";
+            document.IndexingError = "Yeniden indeksleme isteği iptal edildi; önceki indeks korundu.";
+            await TrySaveIndexingStateAsync();
+            throw;
+        }
+        catch (Exception exception)
+        {
+            _logger.LogError(exception, "Document {DocumentId} could not be reindexed.", document.Id);
+            document.IndexingStatus = previousStatus == "Ready" ? "Ready" : "Failed";
+            document.IndexingError = LimitIndexingError(exception);
+            await _context.SaveChangesAsync(CancellationToken.None);
+
+            return StatusCode(
+                StatusCodes.Status503ServiceUnavailable,
+                new
+                {
+                    Message = previousStatus == "Ready"
+                        ? "Yeniden indeksleme başarısız oldu; çalışan önceki indeks korundu."
+                        : "Belge indekslenemedi. Ollama ve Qdrant servislerini kontrol edin."
+                });
         }
     }
 
@@ -380,6 +408,7 @@ public sealed class DocumentsController : ControllerBase
 
         document.IndexingStatus = "Ready";
         document.IndexingError = null;
+        document.CurrentIndexVersion = indexVersion;
     }
 
     private async Task<List<float[]>> GenerateEmbeddingsInBatchesAsync(

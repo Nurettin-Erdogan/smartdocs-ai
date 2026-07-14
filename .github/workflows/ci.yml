@@ -30,10 +30,19 @@ jobs:
           dotnet-version: 10.0.x
 
       - name: Restore
-        run: dotnet restore tests/SmartDocsAI.API.Tests/SmartDocsAI.API.Tests.csproj
+        run: >-
+          dotnet restore tests/SmartDocsAI.API.Tests/SmartDocsAI.API.Tests.csproj
+          /p:NuGetAudit=true /p:NuGetAuditMode=all /warnaserror
 
       - name: Build
-        run: dotnet build tests/SmartDocsAI.API.Tests/SmartDocsAI.API.Tests.csproj --configuration Release --no-restore
+        run: >-
+          dotnet build tests/SmartDocsAI.API.Tests/SmartDocsAI.API.Tests.csproj
+          --configuration Release --no-restore -warnaserror
+
+      - name: Verify formatting
+        run: >-
+          dotnet format tests/SmartDocsAI.API.Tests/SmartDocsAI.API.Tests.csproj
+          --verify-no-changes --no-restore
 
       - name: Test
         run: dotnet test tests/SmartDocsAI.API.Tests/SmartDocsAI.API.Tests.csproj --configuration Release --no-build --no-restore
@@ -59,6 +68,9 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Audit dependencies
+        run: npm audit --audit-level=moderate
 
       - name: Type-check
         run: npm run typecheck

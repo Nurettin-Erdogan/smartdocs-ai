@@ -109,6 +109,16 @@ Tarayıcıda `http://localhost:8080` adresini açın, kayıt olun ve metin içer
 
 Konteyner içinde `Hosting__UseHttpsRedirection=false` ayarlıdır; çünkü TLS'in Caddy, Nginx, Traefik veya platform load balancer üzerinde sonlandırılması beklenir. Dış dünyaya yalnızca HTTPS yayınlayın.
 
+Uygulamanın gerçek istemci IP'sini ve dış HTTPS şemasını kullanabilmesi için yalnızca kontrolünüzdeki proxy adreslerini tanımlayın:
+
+```dotenv
+ProxySettings__KnownProxies__0=10.0.0.10
+```
+
+Uygulama en fazla bir forwarded-header sıçramasını kabul eder. Uygulamayı doğrudan internete açıyorsanız bilinmeyen proxy adreslerini bu listeye eklemeyin.
+
+Frontend ayrı bir API origin'ine bağlanacak şekilde derlenirse varsayılan CSP içindeki `connect-src 'self'` değerine yalnızca o HTTPS API origin'ini ekleyin. Politika `SecurityHeaders__ContentSecurityPolicy` ortam değişkeniyle değiştirilebilir.
+
 ### Ortam
 
 `ASPNETCORE_ENVIRONMENT=Production` kullanın. Production ortamında örnek admin hesabı otomatik oluşturulmaz; ilk kullanıcı arayüzden kayıt olabilir.

@@ -9,6 +9,8 @@ public sealed class OllamaService : IOllamaService
     private readonly HttpClient _httpClient;
     private readonly string _embeddingModel;
     private readonly string _chatModel;
+    private readonly int _maxAnswerTokens;
+    private readonly int _maxAnswerCharacters;
 
     public OllamaService(HttpClient httpClient, IConfiguration configuration)
     {
@@ -18,6 +20,14 @@ public sealed class OllamaService : IOllamaService
 
         _embeddingModel = configuration["OllamaSettings:EmbeddingModel"] ?? "nomic-embed-text";
         _chatModel = configuration["OllamaSettings:ChatModel"] ?? "llama3";
+        _maxAnswerTokens = Math.Clamp(
+            configuration.GetValue<int?>("OllamaSettings:MaxAnswerTokens") ?? 768,
+            64,
+            4_096);
+        _maxAnswerCharacters = Math.Clamp(
+            configuration.GetValue<int?>("OllamaSettings:MaxAnswerCharacters") ?? 20_000,
+            1_000,
+            100_000);
     }
 
     public async Task<float[]> GetEmbeddingAsync(
@@ -54,7 +64,13 @@ public sealed class OllamaService : IOllamaService
 
         using var response = await _httpClient.PostAsJsonAsync(
             "/api/generate",
-            new { model = _chatModel, prompt, stream = false },
+            new
+            {
+                model = _chatModel,
+                prompt,
+                stream = false,
+                options = new { num_predict = _maxAnswerTokens }
+            },
             cancellationToken);
 
         response.EnsureSuccessStatusCode();
@@ -66,6 +82,12 @@ public sealed class OllamaService : IOllamaService
         if (string.IsNullOrWhiteSpace(answer))
         {
             throw new InvalidOperationException("Ollama boş bir cevap döndürdü.");
+        }
+
+        if (answer.Length > _maxAnswerCharacters)
+        {
+            throw new InvalidOperationException(
+                "Ollama güvenli cevap uzunluğu sınırını aştı.");
         }
 
         return answer;

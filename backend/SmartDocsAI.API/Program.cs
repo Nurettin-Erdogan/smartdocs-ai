@@ -1,7 +1,9 @@
+using System.Net;
 using System.Security.Claims;
 using System.Text;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.FileProviders;
@@ -17,6 +19,25 @@ builder.Services.AddAuthorization();
 builder.Services.AddOpenApi();
 builder.Services.AddProblemDetails();
 builder.Services.AddResponseCompression(options => options.EnableForHttps = true);
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders =
+        ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    options.ForwardLimit = 1;
+
+    foreach (var configuredProxy in builder.Configuration
+                 .GetSection("ProxySettings:KnownProxies")
+                 .Get<string[]>() ?? [])
+    {
+        if (!IPAddress.TryParse(configuredProxy, out var proxyAddress))
+        {
+            throw new InvalidOperationException(
+                $"ProxySettings:KnownProxies contains an invalid IP address: {configuredProxy}");
+        }
+
+        options.KnownProxies.Add(proxyAddress);
+    }
+});
 
 builder.Services.AddRateLimiter(options =>
 {
@@ -72,7 +93,10 @@ var connectionString = builder.Configuration.GetConnectionString("DefaultConnect
 builder.Services.AddDbContext<AppDbContext>(options => options.UseNpgsql(connectionString));
 
 builder.Services.AddScoped<ITokenService, TokenService>();
+builder.Services.AddSingleton<DocumentProcessingGate>();
 builder.Services.AddScoped<IDocumentProcessor, DocumentProcessor>();
+builder.Services.AddScoped<IDocumentDeletionService, DocumentDeletionService>();
+builder.Services.AddHostedService<PendingDocumentDeletionWorker>();
 builder.Services.AddHttpClient<IOllamaService, OllamaService>(client =>
     client.Timeout = TimeSpan.FromSeconds(
         builder.Configuration.GetValue<int?>("OllamaSettings:TimeoutSeconds") ?? 120));
@@ -106,6 +130,8 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 
 var app = builder.Build();
 
+app.UseForwardedHeaders();
+
 await using (var scope = app.Services.CreateAsyncScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -123,6 +149,27 @@ else
 }
 
 var frontendPath = ResolveFrontendPath(app.Environment, app.Configuration);
+var contentSecurityPolicy = app.Configuration["SecurityHeaders:ContentSecurityPolicy"]
+    ?? "default-src 'self'; base-uri 'self'; frame-ancestors 'none'; " +
+       "form-action 'self'; img-src 'self' data:; object-src 'none'; " +
+       "script-src 'self'; style-src 'self'; connect-src 'self'";
+app.Use(async (context, next) =>
+{
+    context.Response.OnStarting(() =>
+    {
+        context.Response.Headers["X-Content-Type-Options"] = "nosniff";
+        context.Response.Headers["X-Frame-Options"] = "DENY";
+        context.Response.Headers["Referrer-Policy"] = "no-referrer";
+        context.Response.Headers["Permissions-Policy"] =
+            "camera=(), microphone=(), geolocation=(), payment=()";
+        context.Response.Headers["Cross-Origin-Opener-Policy"] = "same-origin";
+        context.Response.Headers["Content-Security-Policy"] = contentSecurityPolicy;
+        return Task.CompletedTask;
+    });
+
+    await next();
+});
+
 if (frontendPath is not null)
 {
     var fileProvider = new PhysicalFileProvider(frontendPath);
@@ -130,13 +177,13 @@ if (frontendPath is not null)
     app.UseStaticFiles(new StaticFileOptions { FileProvider = fileProvider });
 }
 
+if (!app.Environment.IsDevelopment())
+{
+    app.UseHsts();
+}
+
 if (app.Configuration.GetValue("Hosting:UseHttpsRedirection", true))
 {
-    if (!app.Environment.IsDevelopment())
-    {
-        app.UseHsts();
-    }
-
     app.UseHttpsRedirection();
 }
 

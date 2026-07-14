@@ -146,6 +146,7 @@ Korumalı endpointlerde `Authorization: Bearer <token>` başlığı gerekir. İs
 - `Ready`: sohbet aramasına hazır
 - `Failed`: dış servis veya indeksleme hatası oluştu; tekrar denenebilir
 - `NoContent`: PDF'den kullanılabilir metin çıkarılamadı
+- `Deleting`: Qdrant, dosya ve veritabanı temizliği tamamlanana kadar kalıcı silme kuyruğunda
 
 Sohbet yalnızca `Ready` belgeleri arar. Her kullanıcı sadece kendi belge ve sohbetlerine erişebilir.
 
@@ -160,6 +161,12 @@ Sohbet yalnızca `Ready` belgeleri arar. Her kullanıcı sadece kendi belge ve s
 | `RagSettings:SearchLimit` | `4` | Cevap bağlamına alınan parça sayısı |
 | `RagSettings:MinimumScore` | `0.35` | En düşük benzerlik skoru |
 | `DocumentProcessingSettings:MaxChunks` | `2000` | Tek PDF için güvenli parça sınırı |
+| `DocumentProcessingSettings:MaxPages` | `500` | Tek PDF için sayfa sınırı |
+| `DocumentProcessingSettings:MaxExtractedCharacters` | `2000000` | Açılmış PDF metni için karakter bütçesi |
+| `DocumentProcessingSettings:TimeoutSeconds` | `60` | PDF ayrıştırma zaman bütçesi |
+| `DocumentProcessingSettings:MaxConcurrentDocuments` | `2` | Aynı anda ayrıştırılabilecek PDF sayısı |
+| `DocumentDeletionSettings:RetryIntervalSeconds` | `30` | Bekleyen kalıcı silmeleri yeniden deneme aralığı |
+| `ProxySettings:KnownProxies` | `[]` | `X-Forwarded-*` başlıklarına güvenilecek proxy IP'leri |
 | `Hosting:UseHttpsRedirection` | `true` | Doğrudan barındırmada HTTPS yönlendirmesi |
 
 ASP.NET ortam değişkenlerinde `:` yerine `__` kullanılır; örneğin `RagSettings__MinimumScore`.

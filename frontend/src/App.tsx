@@ -50,12 +50,16 @@ const formatIndexingStatus = (status: string) => {
     case 'Failed': return 'İndekslenemedi';
     case 'NoContent': return 'Metin bulunamadı';
     case 'Pending': return 'İşleniyor';
+    case 'Deleting': return 'Silme bekliyor';
     default: return status || 'Bilinmiyor';
   }
 };
 
 const errorMessage = (error: unknown, fallback: string) =>
   error instanceof Error ? error.message : fallback;
+
+const isAbortError = (error: unknown) =>
+  error instanceof DOMException && error.name === 'AbortError';
 
 const conversationTitle = (conversation: ChatHistorySummary) => {
   const question = conversation.firstQuestion.trim();
@@ -83,8 +87,11 @@ function App() {
   const [conversationLoading, setConversationLoading] = useState(false);
   const [documentAction, setDocumentAction] = useState<DocumentAction>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const refreshControllerRef = useRef<AbortController | null>(null);
 
   const resetWorkspace = useCallback(() => {
+    refreshControllerRef.current?.abort();
+    refreshControllerRef.current = null;
     setDocuments([]);
     setHistory([]);
     setSelectedConversationId(null);
@@ -92,6 +99,9 @@ function App() {
     setQuestion('');
     setSources([]);
     setUploadFile(null);
+    setRefreshing(false);
+    setConversationLoading(false);
+    setDocumentAction(null);
     if (fileInputRef.current) fileInputRef.current.value = '';
   }, []);
 
@@ -113,12 +123,16 @@ function App() {
   const refreshData = useCallback(async (selectLatestWhenEmpty = false) => {
     if (!session) return;
 
+    refreshControllerRef.current?.abort();
+    const controller = new AbortController();
+    refreshControllerRef.current = controller;
     setRefreshing(true);
     try {
       const [nextDocuments, nextHistory] = await Promise.all([
-        api.listDocuments(),
-        api.chatHistory()
+        api.listDocuments(controller.signal),
+        api.chatHistory(controller.signal)
       ]);
+      if (controller.signal.aborted || refreshControllerRef.current !== controller) return;
       setDocuments(nextDocuments);
       setHistory(nextHistory);
       setSelectedConversationId((currentId) => {
@@ -128,9 +142,13 @@ function App() {
         return selectLatestWhenEmpty ? nextHistory[0]?.conversationId ?? null : null;
       });
     } catch (error) {
+      if (isAbortError(error)) return;
       setNotification({ kind: 'error', message: errorMessage(error, 'Veriler yüklenemedi.') });
     } finally {
-      setRefreshing(false);
+      if (refreshControllerRef.current === controller) {
+        refreshControllerRef.current = null;
+        setRefreshing(false);
+      }
     }
   }, [session]);
 
@@ -145,15 +163,15 @@ function App() {
       return;
     }
 
-    let cancelled = false;
+    const controller = new AbortController();
     setConversationLoading(true);
 
-    void api.getConversation(selectedConversationId)
+    void api.getConversation(selectedConversationId, controller.signal)
       .then((conversation) => {
-        if (!cancelled) setSelectedConversation(conversation);
+        if (!controller.signal.aborted) setSelectedConversation(conversation);
       })
       .catch((error) => {
-        if (!cancelled) {
+        if (!controller.signal.aborted && !isAbortError(error)) {
           setNotification({
             kind: 'error',
             message: errorMessage(error, 'Sohbet yüklenemedi.')
@@ -161,11 +179,11 @@ function App() {
         }
       })
       .finally(() => {
-        if (!cancelled) setConversationLoading(false);
+        if (!controller.signal.aborted) setConversationLoading(false);
       });
 
     return () => {
-      cancelled = true;
+      controller.abort();
     };
   }, [session, selectedConversationId]);
 
@@ -287,6 +305,7 @@ function App() {
       await refreshData(false);
     } catch (error) {
       setNotification({ kind: 'error', message: errorMessage(error, 'Belge silinemedi.') });
+      await refreshData(false);
     } finally {
       setDocumentAction(null);
     }
@@ -605,7 +624,9 @@ function App() {
                   >
                     {documentAction?.id === document.id && documentAction.kind === 'delete'
                       ? 'Siliniyor…'
-                      : 'Sil'}
+                      : document.indexingStatus === 'Deleting'
+                        ? 'Temizliği yeniden dene'
+                        : 'Sil'}
                   </button>
                 </div>
               </article>

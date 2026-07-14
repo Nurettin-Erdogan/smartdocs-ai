@@ -46,8 +46,9 @@ Seed edilen roller: `Admin`, `Personel`, `Misafir`.
 | `FilePath` | Sunucudaki benzersiz fiziksel dosya yolu |
 | `FileSize` | Bayt cinsinden boyut |
 | `UploadDate` | UTC yüklenme zamanı |
-| `IndexingStatus` | `Pending`, `Ready`, `Failed`, `NoContent` |
+| `IndexingStatus` | `Pending`, `Ready`, `Failed`, `NoContent`, `Deleting` |
 | `IndexingError` | En fazla 1000 karakterlik son indeksleme hata özeti |
+| `CurrentIndexVersion` | Aramada kullanılacak tamamlanmış Qdrant indeks sürümü |
 
 `(UserId, UploadDate)` indeksi belge listesini hızlandırır.
 

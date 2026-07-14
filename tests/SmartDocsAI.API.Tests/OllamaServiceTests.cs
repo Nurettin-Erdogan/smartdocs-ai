@@ -37,6 +37,21 @@ public sealed class OllamaServiceTests
             service.GenerateAnswerAsync("soru"));
     }
 
+    [Fact]
+    public async Task GenerateAnswerAsync_SendsConfiguredOutputLimit()
+    {
+        string? requestBody = null;
+        var service = CreateService(request =>
+        {
+            requestBody = request.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
+            return TestHttpMessageHandler.Json("{\"response\":\"yanıt\"}");
+        });
+
+        await service.GenerateAnswerAsync("soru");
+
+        Assert.Contains("\"num_predict\":768", requestBody);
+    }
+
     private static OllamaService CreateService(Func<HttpRequestMessage, HttpResponseMessage> handler)
     {
         var configuration = new ConfigurationBuilder()

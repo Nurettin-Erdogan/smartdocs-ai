@@ -24,6 +24,7 @@ public sealed class ChatController : ControllerBase
     private readonly ILogger<ChatController> _logger;
     private readonly int _searchLimit;
     private readonly double _minimumScore;
+    private readonly int _maxHistoryCharacters;
 
     public ChatController(
         AppDbContext context,
@@ -44,6 +45,10 @@ public sealed class ChatController : ControllerBase
             configuration.GetValue<double?>("RagSettings:MinimumScore") ?? 0.35,
             0,
             1);
+        _maxHistoryCharacters = Math.Clamp(
+            configuration.GetValue<int?>("RagSettings:MaxHistoryCharacters") ?? 12_000,
+            1_000,
+            50_000);
     }
 
     [HttpPost]
@@ -92,13 +97,15 @@ public sealed class ChatController : ControllerBase
                 .ToListAsync(cancellationToken);
         }
 
-        var readyDocumentIds = await _context.Documents
+        var readyDocumentVersions = await _context.Documents
             .AsNoTracking()
             .Where(document => document.UserId == userId && document.IndexingStatus == "Ready")
-            .Select(document => document.Id)
-            .ToListAsync(cancellationToken);
+            .ToDictionaryAsync(
+                document => document.Id,
+                document => document.CurrentIndexVersion,
+                cancellationToken);
 
-        if (readyDocumentIds.Count == 0)
+        if (readyDocumentVersions.Count == 0)
         {
             return BadRequest(new { Message = "Soru sormadan önce indekslenmesi tamamlanmış bir PDF yüklemelisin." });
         }
@@ -116,7 +123,7 @@ public sealed class ChatController : ControllerBase
             relevantChunks = await _qdrantService.SearchSimilarChunksAsync(
                 questionEmbedding,
                 _searchLimit,
-                readyDocumentIds,
+                readyDocumentVersions,
                 _minimumScore,
                 cancellationToken);
         }
@@ -167,10 +174,7 @@ public sealed class ChatController : ControllerBase
         var contextText = string.Join("\n\n", relevantChunks.Select(chunk =>
             $"[Belge: {documentTitles.GetValueOrDefault(chunk.DocumentId, $"#{chunk.DocumentId}")}, " +
             $"Sayfa {chunk.PageNumber}, Parça {chunk.ChunkIndex}] {chunk.Content}"));
-        var conversationText = previousMessages.Count == 0
-            ? "Önceki konuşma yok."
-            : string.Join("\n\n", previousMessages.Select(message =>
-                $"Kullanıcı: {message.Question}\nAsistan: {message.Answer}"));
+        var conversationText = BuildConversationContext(previousMessages);
 
         var prompt = $@"Sen SmartDocs AI asistanısın. Aşağıdaki belge parçalarına dayanarak yalnızca Türkçe cevap ver.
 Eğer cevap belgelerde yoksa bunu açıkça söyle; tahmin yürütme.
@@ -318,5 +322,20 @@ Bağlam:
     {
         var claim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         return int.TryParse(claim, out userId);
+    }
+
+    private string BuildConversationContext(IReadOnlyList<Message> messages)
+    {
+        if (messages.Count == 0)
+        {
+            return "Önceki konuşma yok.";
+        }
+
+        var text = string.Join("\n\n", messages.Select(message =>
+            $"Kullanıcı: {message.Question}\nAsistan: {message.Answer}"));
+
+        return text.Length <= _maxHistoryCharacters
+            ? text
+            : text[^_maxHistoryCharacters..];
     }
 }

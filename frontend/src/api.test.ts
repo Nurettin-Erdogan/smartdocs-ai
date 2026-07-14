@@ -1,5 +1,9 @@
-import { describe, expect, it } from 'vitest';
-import { extractApiErrorMessage } from './api';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { api, extractApiErrorMessage } from './api';
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 
 describe('extractApiErrorMessage', () => {
   it('reads the API message field', () => {
@@ -27,5 +31,19 @@ describe('extractApiErrorMessage', () => {
   it('uses the supplied fallback for an empty response', () => {
     expect(extractApiErrorMessage(undefined, 'Bağlantı kurulamadı.'))
       .toBe('Bağlantı kurulamadı.');
+  });
+
+  it('forwards cancellation signals to document requests', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response('[]', {
+      status: 200,
+      headers: { 'content-type': 'application/json' }
+    }));
+    vi.stubGlobal('fetch', fetchMock);
+    const controller = new AbortController();
+
+    await api.listDocuments(controller.signal);
+
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(fetchMock.mock.calls[0]?.[1]?.signal).toBe(controller.signal);
   });
 });

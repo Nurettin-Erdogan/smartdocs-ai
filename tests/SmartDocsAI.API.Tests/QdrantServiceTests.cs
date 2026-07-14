@@ -30,14 +30,15 @@ public sealed class QdrantServiceTests
         var results = await service.SearchSimilarChunksAsync(
             new[] { 0.1f, 0.2f, 0.3f },
             limit: 3,
-            documentIds: new List<int> { 7 },
+            documentVersions: new Dictionary<int, string?> { [7] = "current-version" },
             minimumScore: 0.35);
 
         var result = Assert.Single(results);
         Assert.Equal("iyi", result.Content);
         Assert.Contains("\"score_threshold\":0.35", requestBody);
         Assert.Contains("\"query\":[0.1,0.2,0.3]", requestBody);
-        Assert.Contains("\"any\":[7]", requestBody);
+        Assert.Contains("\"documentId\"", requestBody);
+        Assert.Contains("\"current-version\"", requestBody);
     }
 
     [Fact]

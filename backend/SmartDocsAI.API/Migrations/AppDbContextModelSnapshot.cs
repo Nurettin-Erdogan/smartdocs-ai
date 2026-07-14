@@ -108,6 +108,10 @@ namespace SmartDocsAI.API.Migrations
                         .HasColumnType("character varying(20)")
                         .HasDefaultValue("Pending");
 
+                    b.Property<string>("CurrentIndexVersion")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
                     b.Property<string>("Title")
                         .IsRequired()
                         .HasMaxLength(255)

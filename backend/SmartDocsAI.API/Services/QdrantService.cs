@@ -169,26 +169,46 @@ public sealed class QdrantService : IQdrantService
     public async Task<List<QdrantSearchResult>> SearchSimilarChunksAsync(
         float[] queryVector,
         int limit,
-        List<int> documentIds,
+        IReadOnlyDictionary<int, string?> documentVersions,
         double minimumScore,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(queryVector);
-        ArgumentNullException.ThrowIfNull(documentIds);
+        ArgumentNullException.ThrowIfNull(documentVersions);
 
         if (queryVector.Length != _vectorSize)
         {
             throw new InvalidOperationException($"Sorgu embedding boyutu {_vectorSize} olmalıdır.");
         }
 
-        if (documentIds.Count == 0)
+        if (documentVersions.Count == 0)
         {
             return new List<QdrantSearchResult>();
         }
 
         limit = Math.Clamp(limit, 1, 20);
         minimumScore = Math.Clamp(minimumScore, 0, 1);
-        var requestedLimit = Math.Min(limit * 3, 50);
+        var requestedLimit = Math.Min(Math.Max(limit * 10, 50), 100);
+        var documentFilters = documentVersions
+            .Select(document =>
+            {
+                var conditions = new List<object>
+                {
+                    new { key = "documentId", match = new { value = document.Key } }
+                };
+
+                if (!string.IsNullOrWhiteSpace(document.Value))
+                {
+                    conditions.Add(new
+                    {
+                        key = "indexVersion",
+                        match = new { value = document.Value }
+                    });
+                }
+
+                return new { must = conditions.ToArray() };
+            })
+            .ToArray();
 
         var searchRequest = new
         {
@@ -198,14 +218,7 @@ public sealed class QdrantService : IQdrantService
             with_payload = true,
             filter = new
             {
-                must = new object[]
-                {
-                    new
-                    {
-                        key = "documentId",
-                        match = new { any = documentIds.Distinct().ToArray() }
-                    }
-                }
+                should = documentFilters
             }
         };
 
@@ -228,7 +241,7 @@ public sealed class QdrantService : IQdrantService
                 PageNumber = item.Payload.PageNumber,
                 Score = item.Score
             })
-            .Where(item => documentIds.Contains(item.DocumentId))
+            .Where(item => documentVersions.ContainsKey(item.DocumentId))
             .GroupBy(item => (item.DocumentId, item.ChunkIndex))
             .Select(group => group.OrderByDescending(item => item.Score).First())
             .OrderByDescending(item => item.Score)

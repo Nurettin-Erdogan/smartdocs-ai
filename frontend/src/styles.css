@@ -460,6 +460,11 @@ label {
   background: rgba(125, 211, 252, 0.08);
 }
 
+.status-deleting {
+  color: #9a3412;
+  background: #ffedd5;
+}
+
 .history-item strong,
 .history-item span,
 .history-item small {

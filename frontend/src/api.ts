@@ -183,7 +183,8 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(body)
     }),
-  listDocuments: () => apiFetch<DocumentItem[]>('/documents'),
+  listDocuments: (signal?: AbortSignal) =>
+    apiFetch<DocumentItem[]>('/documents', { signal }),
   uploadDocument: (file: File) => {
     const formData = new FormData();
     formData.append('file', file);
@@ -205,7 +206,8 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(body)
     }),
-  chatHistory: () => apiFetch<ChatHistorySummary[]>('/chat/history'),
-  getConversation: (conversationId: number) =>
-    apiFetch<ChatConversation>(`/chat/${conversationId}`)
+  chatHistory: (signal?: AbortSignal) =>
+    apiFetch<ChatHistorySummary[]>('/chat/history', { signal }),
+  getConversation: (conversationId: number, signal?: AbortSignal) =>
+    apiFetch<ChatConversation>(`/chat/${conversationId}`, { signal })
 };

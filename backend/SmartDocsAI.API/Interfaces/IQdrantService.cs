@@ -36,7 +36,7 @@ namespace SmartDocsAI.API.Interfaces
         Task<List<QdrantSearchResult>> SearchSimilarChunksAsync(
             float[] queryVector,
             int limit,
-            List<int> documentIds,
+            IReadOnlyDictionary<int, string?> documentVersions,
             double minimumScore,
             CancellationToken cancellationToken = default);
     }
