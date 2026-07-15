@@ -63,6 +63,7 @@ export type ChatRequest = {
 export type ChatStreamCallbacks = {
   onStart?: (data: { conversationId: number; sources: ChatSource[] }) => void;
   onChunk?: (content: string) => void;
+  signal?: AbortSignal;
 };
 
 type UnauthorizedHandler = (message: string) => void;
@@ -191,7 +192,8 @@ async function streamChat(
   const response = await fetch(`${normalizedApiBaseUrl}/chat`, {
     method: 'POST',
     headers,
-    body: JSON.stringify(body)
+    body: JSON.stringify(body),
+    signal: callbacks.signal
   });
 
   if (!response.ok) {

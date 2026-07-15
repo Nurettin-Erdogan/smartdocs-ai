@@ -206,6 +206,8 @@ Başka kullanıcıya ait sohbet için `404` döner.
 
 Bu endpoint yalnızca API sürecinin yanıt verdiğini gösterir; PostgreSQL, Qdrant veya Ollama için derin sağlık kontrolü değildir.
 
+`GET /api/home/ready` PostgreSQL, Qdrant ve Ollama bağlantılarını ayrı ayrı denetler. Tüm servisler hazırsa `200`, bağımlılıklardan biri kullanılamıyorsa `503` döner.
+
 ## Hata biçimleri
 
 İş kuralı hataları genellikle şu biçimdedir:

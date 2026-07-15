@@ -88,10 +88,13 @@ function App() {
   const [documentAction, setDocumentAction] = useState<DocumentAction>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const refreshControllerRef = useRef<AbortController | null>(null);
+  const chatControllerRef = useRef<AbortController | null>(null);
 
   const resetWorkspace = useCallback(() => {
     refreshControllerRef.current?.abort();
     refreshControllerRef.current = null;
+    chatControllerRef.current?.abort();
+    chatControllerRef.current = null;
     setDocuments([]);
     setHistory([]);
     setSelectedConversationId(null);
@@ -343,6 +346,9 @@ function App() {
 
     setAsking(true);
     setNotification(null);
+    chatControllerRef.current?.abort();
+    const chatController = new AbortController();
+    chatControllerRef.current = chatController;
     const temporaryMessageId = -Date.now();
     const createdAt = new Date().toISOString();
     try {
@@ -350,6 +356,7 @@ function App() {
         question: trimmedQuestion,
         conversationId: selectedConversationId
       }, {
+        signal: chatController.signal,
         onStart: ({ conversationId, sources: nextSources }) => {
           setSelectedConversationId(conversationId);
           setSources(nextSources);
@@ -391,10 +398,21 @@ function App() {
         // The optimistic message remains visible if refreshing the saved conversation fails.
       }
     } catch (error) {
-      setNotification({ kind: 'error', message: errorMessage(error, 'Soru gönderilemedi.') });
+      if (isAbortError(error)) {
+        setNotification({ kind: 'info', message: 'Cevap üretimi durduruldu.' });
+      } else {
+        setNotification({ kind: 'error', message: errorMessage(error, 'Soru gönderilemedi.') });
+      }
     } finally {
-      setAsking(false);
+      if (chatControllerRef.current === chatController) {
+        chatControllerRef.current = null;
+        setAsking(false);
+      }
     }
+  };
+
+  const handleStopAnswer = () => {
+    chatControllerRef.current?.abort();
   };
 
   const handleLogout = () => {
@@ -408,6 +426,7 @@ function App() {
   };
 
   const handleNewConversation = () => {
+    chatControllerRef.current?.abort();
     setSelectedConversationId(null);
     setSelectedConversation(null);
     setSources([]);
@@ -705,9 +724,15 @@ function App() {
             />
             <div className="composer-footer">
               <small className="muted">{question.length}/2000</small>
-              <button className="primary-btn" type="submit" disabled={asking || !question.trim()}>
-                {asking ? 'Cevap hazırlanıyor…' : 'Soruyu Gönder'}
-              </button>
+              {asking ? (
+                <button className="stop-btn" type="button" onClick={handleStopAnswer}>
+                  <span className="stop-icon" /> Cevabı Durdur
+                </button>
+              ) : (
+                <button className="primary-btn" type="submit" disabled={!question.trim()}>
+                  Soruyu Gönder
+                </button>
+              )}
             </div>
           </form>
 

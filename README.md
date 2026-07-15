@@ -44,7 +44,15 @@ ollama pull nomic-embed-text
 ollama pull llama3
 ```
 
-Ardından proje kökünde:
+Windows'ta en kolay kurulum için `start-smartdocs.cmd` dosyasına çift tıklayın. Betik güvenli veritabanı/JWT anahtarlarını otomatik üretir, Docker servislerini başlatır, bağımlılıkların hazır olmasını bekler ve uygulamayı tarayıcıda açar.
+
+PowerShell üzerinden aynı işlem:
+
+```powershell
+.\start-smartdocs.ps1 -TarayiciyiAc
+```
+
+Elle kurulum yapmak isterseniz proje kökünde:
 
 ```powershell
 Copy-Item .env.example .env

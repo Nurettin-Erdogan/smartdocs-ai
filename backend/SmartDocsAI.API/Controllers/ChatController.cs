@@ -194,11 +194,13 @@ Bağlam:
         if (Request.Headers.Accept.Any(value =>
                 value?.Contains("application/x-ndjson", StringComparison.OrdinalIgnoreCase) == true))
         {
+            var createdForStream = false;
             if (conversation is null)
             {
                 conversation = new Conversation { UserId = userId, CreatedAt = DateTime.UtcNow };
                 _context.Conversations.Add(conversation);
                 await _context.SaveChangesAsync(cancellationToken);
+                createdForStream = true;
             }
 
             Response.StatusCode = StatusCodes.Status200OK;
@@ -236,12 +238,14 @@ Bağlam:
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
+                await DeleteEmptyStreamConversationAsync(conversation.Id, createdForStream);
                 throw;
             }
             catch (Exception exception) when (
                 exception is HttpRequestException or InvalidOperationException or JsonException)
             {
                 _logger.LogError(exception, "Streaming answer generation failed.");
+                await DeleteEmptyStreamConversationAsync(conversation.Id, createdForStream);
                 await WriteStreamEventAsync(
                     "error",
                     new { Message = "Yapay zekâ cevabı tamamlayamadı. Lütfen tekrar deneyin." },
@@ -252,6 +256,7 @@ Bağlam:
             var answerText = streamedAnswer.ToString().Trim();
             if (string.IsNullOrWhiteSpace(answerText))
             {
+                await DeleteEmptyStreamConversationAsync(conversation.Id, createdForStream);
                 await WriteStreamEventAsync(
                     "error",
                     new { Message = "Yapay zekâ boş bir cevap döndürdü." },
@@ -434,5 +439,19 @@ Bağlam:
             JsonSerializerOptions.Web);
         await Response.WriteAsync(json + "\n", cancellationToken);
         await Response.Body.FlushAsync(cancellationToken);
+    }
+
+    private async Task DeleteEmptyStreamConversationAsync(
+        int conversationId,
+        bool createdForStream)
+    {
+        if (!createdForStream)
+        {
+            return;
+        }
+
+        await _context.Conversations
+            .Where(item => item.Id == conversationId && !item.Messages.Any())
+            .ExecuteDeleteAsync(CancellationToken.None);
     }
 }

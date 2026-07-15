@@ -67,15 +67,17 @@ describe('extractApiErrorMessage', () => {
     }));
     vi.stubGlobal('fetch', fetchMock);
     const chunks: string[] = [];
+    const controller = new AbortController();
 
     const result = await api.askChat(
       { question: 'Selam' },
-      { onChunk: (content) => chunks.push(content) }
+      { onChunk: (content) => chunks.push(content), signal: controller.signal }
     );
 
     expect(chunks).toEqual(['Merhaba', ' dünya']);
     expect(result).toEqual({ conversationId: 7, answer: 'Merhaba dünya', sources: [] });
     const headers = fetchMock.mock.calls[0]?.[1]?.headers as Headers;
     expect(headers.get('Accept')).toBe('application/x-ndjson');
+    expect(fetchMock.mock.calls[0]?.[1]?.signal).toBe(controller.signal);
   });
 });
