@@ -214,6 +214,7 @@ function App() {
         email: result.email,
         role: result.role
       });
+      setLoginForm((current) => ({ ...current, password: '' }));
       setNotification({ kind: 'success', message: 'Giriş başarılı.' });
     } catch (error) {
       setNotification({ kind: 'error', message: errorMessage(error, 'Giriş başarısız oldu.') });
@@ -233,6 +234,7 @@ function App() {
         email: result.email,
         role: result.role
       });
+      setAuthForm({ fullName: '', email: '', password: '' });
       setNotification({ kind: 'success', message: 'Hesabın oluşturuldu.' });
     } catch (error) {
       setNotification({ kind: 'error', message: errorMessage(error, 'Kayıt başarısız oldu.') });
@@ -383,6 +385,9 @@ function App() {
   const handleLogout = () => {
     clearSession();
     setSession(null);
+    setAuthMode('login');
+    setLoginForm({ email: '', password: '' });
+    setAuthForm({ fullName: '', email: '', password: '' });
     resetWorkspace();
     setNotification({ kind: 'info', message: 'Çıkış yapıldı.' });
   };
@@ -401,16 +406,21 @@ function App() {
         <div className="auth-backdrop" />
         <main className="auth-card">
           <section className="hero-block">
-            <div className="brand-pill">SmartDocs AI</div>
-            <h1>PDF belgelerini yükle, sor, kaynaklı cevap al.</h1>
+            <div className="brand-pill"><span className="brand-mark">✦</span> SmartDocs AI</div>
+            <p className="eyebrow">BELGELERİN İÇİN YAPAY ZEKÂ ÇALIŞMA ALANI</p>
+            <h1>PDF’lerini <em>anlamlı</em> cevaplara dönüştür.</h1>
             <p>
-              Belgelerin kendi altyapında kalır; SmartDocs AI yalnızca yüklediğin içeriklerden
-              anlamlı kaynaklar bulup Türkçe cevap üretir.
+              Belgelerin kendi alanında kalır. Sorunu sor; SmartDocs AI yalnızca yüklediğin
+              kaynaklardan açık, Türkçe ve izlenebilir cevaplar hazırlasın.
             </p>
             <div className="feature-row">
-              <span>Kullanıcıya özel</span>
-              <span>Kaynak gösterimi</span>
-              <span>Yerel yapay zekâ</span>
+              <span><b>01</b> PDF yükle</span>
+              <span><b>02</b> Sorunu sor</span>
+              <span><b>03</b> Kaynağı gör</span>
+            </div>
+            <div className="hero-note">
+              <span className="pulse-dot" />
+              <span>Belgelerin yalnızca sana ait çalışma alanında işlenir.</span>
             </div>
           </section>
 
@@ -433,6 +443,16 @@ function App() {
               >
                 Kayıt Ol
               </button>
+            </div>
+
+            <div className="auth-intro">
+              <span className="auth-icon">{authMode === 'login' ? '↗' : '+'}</span>
+              <div>
+                <strong>{authMode === 'login' ? 'Tekrar hoş geldin' : 'Kendi alanını oluştur'}</strong>
+                <p>{authMode === 'login'
+                  ? 'Belgelerine ve sohbetlerine kaldığın yerden devam et.'
+                  : 'Bir dakikadan kısa sürede kişisel belge asistanın hazır.'}</p>
+              </div>
             </div>
 
             <form onSubmit={authMode === 'login' ? handleLogin : handleRegister} className="stack">
@@ -497,7 +517,7 @@ function App() {
     <div className="app-shell">
       <aside className="sidebar panel">
         <div>
-          <div className="brand-pill">SmartDocs AI</div>
+          <div className="brand-pill"><span className="brand-mark">✦</span> SmartDocs AI</div>
           <h2>{user.fullName}</h2>
           <p>{user.email}</p>
           <div className="role-tag">{user.role ?? 'Kullanıcı'}</div>
@@ -582,8 +602,9 @@ function App() {
         <section className="panel documents-panel">
           <div className="section-head">
             <div>
+              <p className="eyebrow">BELGE KÜTÜPHANEN</p>
               <h3>Dokümanlar</h3>
-              <p className="muted">Yüklenen PDF’ler ve indeksleme durumu.</p>
+              <p className="muted">PDF’lerini ekle, durumlarını takip et ve her an ulaş.</p>
             </div>
             <span className="count-badge">{documents.length}</span>
           </div>
@@ -637,8 +658,9 @@ function App() {
         <section className="panel chat-panel">
           <div className="section-head">
             <div>
+              <p className="eyebrow">KAYNAKLI YAPAY ZEKÂ</p>
               <h3>Belge Asistanı</h3>
-              <p className="muted">Soru sor; yanıtı ve kullanılan kaynakları birlikte gör.</p>
+              <p className="muted">Sorunu sor; yanıtın dayandığı kaynakları birlikte incele.</p>
             </div>
             <span className="count-badge">{selectedConversationId ?? 'Yeni'}</span>
           </div>
