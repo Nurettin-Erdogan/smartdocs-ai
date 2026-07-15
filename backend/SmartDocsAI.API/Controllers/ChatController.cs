@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -190,6 +191,90 @@ Soru:
 Bağlam:
 {contextText}";
 
+        if (Request.Headers.Accept.Any(value =>
+                value?.Contains("application/x-ndjson", StringComparison.OrdinalIgnoreCase) == true))
+        {
+            if (conversation is null)
+            {
+                conversation = new Conversation { UserId = userId, CreatedAt = DateTime.UtcNow };
+                _context.Conversations.Add(conversation);
+                await _context.SaveChangesAsync(cancellationToken);
+            }
+
+            Response.StatusCode = StatusCodes.Status200OK;
+            Response.ContentType = "application/x-ndjson; charset=utf-8";
+            Response.Headers.CacheControl = "no-store";
+            Response.Headers["X-Accel-Buffering"] = "no";
+
+            var sources = relevantChunks.Select(chunk => new
+            {
+                chunk.DocumentId,
+                Title = documentTitles.GetValueOrDefault(
+                    chunk.DocumentId,
+                    $"Belge {chunk.DocumentId}"),
+                chunk.ChunkIndex,
+                chunk.PageNumber,
+                chunk.Score,
+                chunk.Content
+            }).ToList();
+
+            await WriteStreamEventAsync(
+                "start",
+                new { ConversationId = conversation.Id, Sources = sources },
+                cancellationToken);
+
+            var streamedAnswer = new StringBuilder();
+            try
+            {
+                await foreach (var chunk in _ollamaService.StreamAnswerAsync(
+                                   prompt,
+                                   cancellationToken))
+                {
+                    streamedAnswer.Append(chunk);
+                    await WriteStreamEventAsync("chunk", new { Content = chunk }, cancellationToken);
+                }
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception exception) when (
+                exception is HttpRequestException or InvalidOperationException or JsonException)
+            {
+                _logger.LogError(exception, "Streaming answer generation failed.");
+                await WriteStreamEventAsync(
+                    "error",
+                    new { Message = "Yapay zekâ cevabı tamamlayamadı. Lütfen tekrar deneyin." },
+                    CancellationToken.None);
+                return new EmptyResult();
+            }
+
+            var answerText = streamedAnswer.ToString().Trim();
+            if (string.IsNullOrWhiteSpace(answerText))
+            {
+                await WriteStreamEventAsync(
+                    "error",
+                    new { Message = "Yapay zekâ boş bir cevap döndürdü." },
+                    CancellationToken.None);
+                return new EmptyResult();
+            }
+
+            _context.Messages.Add(new Message
+            {
+                ConversationId = conversation.Id,
+                Question = question,
+                Answer = answerText,
+                CreatedAt = DateTime.UtcNow
+            });
+            await _context.SaveChangesAsync(cancellationToken);
+
+            await WriteStreamEventAsync(
+                "done",
+                new { ConversationId = conversation.Id },
+                cancellationToken);
+            return new EmptyResult();
+        }
+
         string answer;
         try
         {
@@ -337,5 +422,17 @@ Bağlam:
         return text.Length <= _maxHistoryCharacters
             ? text
             : text[^_maxHistoryCharacters..];
+    }
+
+    private async Task WriteStreamEventAsync(
+        string type,
+        object data,
+        CancellationToken cancellationToken)
+    {
+        var json = JsonSerializer.Serialize(
+            new { Type = type, Data = data },
+            JsonSerializerOptions.Web);
+        await Response.WriteAsync(json + "\n", cancellationToken);
+        await Response.Body.FlushAsync(cancellationToken);
     }
 }

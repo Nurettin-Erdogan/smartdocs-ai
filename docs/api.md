@@ -152,6 +152,8 @@ Başarılı yanıt (`200`):
 
 Soru 1-2000 karakter olmalıdır. Arama yalnızca kullanıcının `Ready` belgelerinde yapılır. Yeterince benzer içerik yoksa `404`, hazır belge yoksa `400`, dış servis zaman aşımı/erişim sorunu varsa `503`, geçersiz dış servis yanıtı varsa `502` döner.
 
+Arayüz aynı endpoint'e `Accept: application/x-ndjson` başlığıyla bağlanır. Bu durumda cevap tek parça JSON yerine `start`, `chunk`, `done` olaylarıyla üretildikçe aktarılır. Akış sırasında model hatası oluşursa `error` olayı gönderilir. Standart `application/json` istemcileri geriye uyumlu tek parça yanıt almaya devam eder.
+
 ### Sohbet özetleri
 
 `GET /api/chat/history`

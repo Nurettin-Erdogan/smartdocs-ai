@@ -98,8 +98,12 @@ builder.Services.AddScoped<IDocumentProcessor, DocumentProcessor>();
 builder.Services.AddScoped<IDocumentDeletionService, DocumentDeletionService>();
 builder.Services.AddHostedService<PendingDocumentDeletionWorker>();
 builder.Services.AddHttpClient<IOllamaService, OllamaService>(client =>
-    client.Timeout = TimeSpan.FromSeconds(
-        builder.Configuration.GetValue<int?>("OllamaSettings:TimeoutSeconds") ?? 120));
+{
+    var timeoutSeconds = builder.Configuration.GetValue<int?>("OllamaSettings:TimeoutSeconds") ?? 0;
+    client.Timeout = timeoutSeconds <= 0
+        ? Timeout.InfiniteTimeSpan
+        : TimeSpan.FromSeconds(timeoutSeconds);
+});
 builder.Services.AddHttpClient<IQdrantService, QdrantService>(client =>
     client.Timeout = TimeSpan.FromSeconds(
         builder.Configuration.GetValue<int?>("QdrantSettings:TimeoutSeconds") ?? 30));

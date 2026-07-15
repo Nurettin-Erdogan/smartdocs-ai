@@ -13,5 +13,12 @@ namespace SmartDocsAI.API.Interfaces
         /// Verilen prompt için Ollama üzerinden metin cevabı üretir.
         /// </summary>
         Task<string> GenerateAnswerAsync(string prompt, CancellationToken cancellationToken = default);
+
+        /// <summary>
+        /// Cevabı üretildikçe parça parça döndürür.
+        /// </summary>
+        IAsyncEnumerable<string> StreamAnswerAsync(
+            string prompt,
+            CancellationToken cancellationToken = default);
     }
 }

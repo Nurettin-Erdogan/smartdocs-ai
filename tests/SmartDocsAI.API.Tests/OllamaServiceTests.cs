@@ -38,7 +38,7 @@ public sealed class OllamaServiceTests
     }
 
     [Fact]
-    public async Task GenerateAnswerAsync_SendsConfiguredOutputLimit()
+    public async Task GenerateAnswerAsync_UsesUnlimitedOutputAndKeepsModelLoaded()
     {
         string? requestBody = null;
         var service = CreateService(request =>
@@ -49,7 +49,25 @@ public sealed class OllamaServiceTests
 
         await service.GenerateAnswerAsync("soru");
 
-        Assert.Contains("\"num_predict\":768", requestBody);
+        Assert.Contains("\"num_predict\":-1", requestBody);
+        Assert.Contains("\"keep_alive\":\"-1\"", requestBody);
+    }
+
+    [Fact]
+    public async Task StreamAnswerAsync_ReturnsChunksInOrder()
+    {
+        var service = CreateService(_ => TestHttpMessageHandler.Json(
+            "{\"response\":\"Merhaba\",\"done\":false}\n" +
+            "{\"response\":\" dünya\",\"done\":false}\n" +
+            "{\"response\":\"!\",\"done\":true}\n"));
+
+        var chunks = new List<string>();
+        await foreach (var chunk in service.StreamAnswerAsync("soru"))
+        {
+            chunks.Add(chunk);
+        }
+
+        Assert.Equal(["Merhaba", " dünya", "!"], chunks);
     }
 
     private static OllamaService CreateService(Func<HttpRequestMessage, HttpResponseMessage> handler)

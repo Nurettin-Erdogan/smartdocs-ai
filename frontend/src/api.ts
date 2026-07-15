@@ -60,6 +60,11 @@ export type ChatRequest = {
   conversationId?: number | null;
 };
 
+export type ChatStreamCallbacks = {
+  onStart?: (data: { conversationId: number; sources: ChatSource[] }) => void;
+  onChunk?: (content: string) => void;
+};
+
 type UnauthorizedHandler = (message: string) => void;
 
 let unauthorizedHandler: UnauthorizedHandler | null = null;
@@ -172,6 +177,93 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
   return payload as T;
 }
 
+async function streamChat(
+  body: ChatRequest,
+  callbacks: ChatStreamCallbacks = {}
+): Promise<ChatResponse> {
+  const headers = new Headers({
+    'Content-Type': 'application/json',
+    Accept: 'application/x-ndjson'
+  });
+  const token = getToken();
+  if (token) headers.set('Authorization', `Bearer ${token}`);
+
+  const response = await fetch(`${normalizedApiBaseUrl}/chat`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(body)
+  });
+
+  if (!response.ok) {
+    const payload = await parseResponsePayload(response);
+    const fallback = response.status === 401
+      ? 'Oturumunuzun süresi doldu. Lütfen yeniden giriş yapın.'
+      : 'Soru gönderilemedi.';
+    const message = extractApiErrorMessage(payload, fallback);
+    if (response.status === 401 && token) unauthorizedHandler?.(message);
+    throw new ApiError(message, response.status, payload);
+  }
+
+  if (!response.body) {
+    throw new ApiError('Yapay zekâ yanıt akışı başlatılamadı.', 502, undefined);
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let conversationId = 0;
+  let sources: ChatSource[] = [];
+  let answer = '';
+  let completed = false;
+
+  const processLine = (line: string) => {
+    if (!line.trim()) return;
+    const event = JSON.parse(line) as {
+      type?: string;
+      data?: Record<string, unknown>;
+    };
+    const data = event.data ?? {};
+
+    if (event.type === 'start') {
+      conversationId = Number(data.conversationId);
+      sources = Array.isArray(data.sources) ? data.sources as ChatSource[] : [];
+      callbacks.onStart?.({ conversationId, sources });
+    } else if (event.type === 'chunk') {
+      const content = typeof data.content === 'string' ? data.content : '';
+      answer += content;
+      if (content) callbacks.onChunk?.(content);
+    } else if (event.type === 'error') {
+      throw new ApiError(
+        typeof data.message === 'string' ? data.message : 'Yapay zekâ cevabı tamamlayamadı.',
+        502,
+        data
+      );
+    } else if (event.type === 'done') {
+      completed = true;
+    }
+  };
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      buffer += decoder.decode(value, { stream: !done });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() ?? '';
+      lines.forEach(processLine);
+      if (done) break;
+    }
+    if (buffer.trim()) processLine(buffer);
+  } finally {
+    reader.releaseLock();
+  }
+
+  if (!completed || conversationId <= 0) {
+    throw new ApiError('Yapay zekâ yanıtı beklenmedik şekilde kesildi.', 502, undefined);
+  }
+
+  return { conversationId, answer: answer.trim(), sources };
+}
+
 export const api = {
   register: (body: { fullName: string; email: string; password: string }) =>
     apiFetch<AuthResponse>('/auth/register', {
@@ -201,11 +293,8 @@ export const api = {
     apiFetch<DocumentItem>(`/documents/${id}/reindex`, {
       method: 'POST'
     }),
-  askChat: (body: ChatRequest) =>
-    apiFetch<ChatResponse>('/chat', {
-      method: 'POST',
-      body: JSON.stringify(body)
-    }),
+  askChat: (body: ChatRequest, callbacks?: ChatStreamCallbacks) =>
+    streamChat(body, callbacks),
   chatHistory: (signal?: AbortSignal) =>
     apiFetch<ChatHistorySummary[]>('/chat/history', { signal }),
   getConversation: (conversationId: number, signal?: AbortSignal) =>

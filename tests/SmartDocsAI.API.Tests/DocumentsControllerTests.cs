@@ -162,6 +162,16 @@ public sealed class DocumentsControllerTests : IAsyncLifetime
 
         public Task<string> GenerateAnswerAsync(string prompt, CancellationToken cancellationToken = default) =>
             Task.FromResult("answer");
+
+        public IAsyncEnumerable<string> StreamAnswerAsync(
+            string prompt,
+            CancellationToken cancellationToken = default) => CreateAnswerStream();
+
+        private static async IAsyncEnumerable<string> CreateAnswerStream()
+        {
+            await Task.CompletedTask;
+            yield return "answer";
+        }
     }
 
     private sealed class FakeQdrantService : IQdrantService

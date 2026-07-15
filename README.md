@@ -155,7 +155,8 @@ Sohbet yalnızca `Ready` belgeleri arar. Her kullanıcı sadece kendi belge ve s
 | Anahtar | Varsayılan | Açıklama |
 | --- | --- | --- |
 | `JwtSettings:LifetimeMinutes` | `480` | JWT ömrü |
-| `OllamaSettings:TimeoutSeconds` | `120` | Ollama HTTP zaman aşımı |
+| `OllamaSettings:TimeoutSeconds` | `0` | Ollama HTTP zaman aşımı; `0` sınırsız bekler |
+| `OllamaSettings:KeepAlive` | `-1` | Sohbet modelini hızlı yanıt için bellekte tutma süresi; `-1` sürekli tutar |
 | `QdrantSettings:VectorSize` | `768` | Embedding boyutu; modelle aynı olmalı |
 | `QdrantSettings:UpsertBatchSize` | `64` | Vektör yazma paket boyutu |
 | `RagSettings:SearchLimit` | `4` | Cevap bağlamına alınan parça sayısı |

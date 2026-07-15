@@ -343,27 +343,42 @@ function App() {
 
     setAsking(true);
     setNotification(null);
+    const temporaryMessageId = -Date.now();
+    const createdAt = new Date().toISOString();
     try {
       const result = await api.askChat({
         question: trimmedQuestion,
         conversationId: selectedConversationId
+      }, {
+        onStart: ({ conversationId, sources: nextSources }) => {
+          setSelectedConversationId(conversationId);
+          setSources(nextSources);
+          setSelectedConversation((current) => ({
+            conversationId,
+            createdAt: current?.conversationId === conversationId
+              ? current.createdAt
+              : createdAt,
+            messages: [
+              ...(current?.conversationId === conversationId ? current.messages : []),
+              {
+                id: temporaryMessageId,
+                question: trimmedQuestion,
+                answer: '',
+                createdAt
+              }
+            ]
+          }));
+        },
+        onChunk: (content) => {
+          setSelectedConversation((current) => current ? {
+            ...current,
+            messages: current.messages.map((message) =>
+              message.id === temporaryMessageId
+                ? { ...message, answer: message.answer + content }
+                : message)
+          } : current);
+        }
       });
-      const createdAt = new Date().toISOString();
-      setSelectedConversation((current) => ({
-        conversationId: result.conversationId,
-        createdAt: current?.conversationId === result.conversationId
-          ? current.createdAt
-          : createdAt,
-        messages: [
-          ...(current?.conversationId === result.conversationId ? current.messages : []),
-          {
-            id: -Date.now(),
-            question: trimmedQuestion,
-            answer: result.answer,
-            createdAt
-          }
-        ]
-      }));
       setSelectedConversationId(result.conversationId);
       setSources(result.sources);
       setQuestion('');

@@ -46,4 +46,36 @@ describe('extractApiErrorMessage', () => {
     expect(fetchMock).toHaveBeenCalledOnce();
     expect(fetchMock.mock.calls[0]?.[1]?.signal).toBe(controller.signal);
   });
+
+  it('streams chat chunks in order and returns the completed answer', async () => {
+    const encoder = new TextEncoder();
+    const stream = new ReadableStream({
+      start(controller) {
+        controller.enqueue(encoder.encode(
+          '{"type":"start","data":{"conversationId":7,"sources":[]}}\n'));
+        controller.enqueue(encoder.encode(
+          '{"type":"chunk","data":{"content":"Merhaba"}}\n' +
+          '{"type":"chunk","data":{"content":" dünya"}}\n'));
+        controller.enqueue(encoder.encode(
+          '{"type":"done","data":{"conversationId":7}}\n'));
+        controller.close();
+      }
+    });
+    const fetchMock = vi.fn().mockResolvedValue(new Response(stream, {
+      status: 200,
+      headers: { 'content-type': 'application/x-ndjson' }
+    }));
+    vi.stubGlobal('fetch', fetchMock);
+    const chunks: string[] = [];
+
+    const result = await api.askChat(
+      { question: 'Selam' },
+      { onChunk: (content) => chunks.push(content) }
+    );
+
+    expect(chunks).toEqual(['Merhaba', ' dünya']);
+    expect(result).toEqual({ conversationId: 7, answer: 'Merhaba dünya', sources: [] });
+    const headers = fetchMock.mock.calls[0]?.[1]?.headers as Headers;
+    expect(headers.get('Accept')).toBe('application/x-ndjson');
+  });
 });
