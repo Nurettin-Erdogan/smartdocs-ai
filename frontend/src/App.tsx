@@ -440,21 +440,41 @@ function App() {
         <div className="auth-backdrop" />
         <main className="auth-card">
           <section className="hero-block">
-            <div className="brand-pill"><span className="brand-mark">✦</span> SmartDocs AI</div>
-            <p className="eyebrow">BELGELERİN İÇİN YAPAY ZEKÂ ÇALIŞMA ALANI</p>
-            <h1>PDF’lerini <em>anlamlı</em> cevaplara dönüştür.</h1>
-            <p>
-              Belgelerin kendi alanında kalır. Sorunu sor; SmartDocs AI yalnızca yüklediğin
-              kaynaklardan açık, Türkçe ve izlenebilir cevaplar hazırlasın.
-            </p>
-            <div className="feature-row">
-              <span><b>01</b> PDF yükle</span>
-              <span><b>02</b> Sorunu sor</span>
-              <span><b>03</b> Kaynağı gör</span>
+            <header className="auth-brand">
+              <div className="brand-pill"><span className="brand-mark">S</span> SmartDocs AI</div>
+              <span className="local-badge"><span className="pulse-dot" /> Yerel ve güvenli</span>
+            </header>
+
+            <div className="hero-copy">
+              <p className="eyebrow">BELGELERİNİ ANLAYAN YAPAY ZEKÂ</p>
+              <h1>Belgeni yükle.<br /><em>Cevabını kaynağından al.</em></h1>
+              <p>
+                Sayfalar arasında arama yapmakla uğraşma. Sorunu yaz; SmartDocs AI
+                yüklediğin belgeleri incelesin, sana açık ve kaynaklı bir cevap hazırlasın.
+              </p>
             </div>
-            <div className="hero-note">
-              <span className="pulse-dot" />
-              <span>Belgelerin yalnızca sana ait çalışma alanında işlenir.</span>
+
+            <div className="workflow-card" aria-label="SmartDocs AI çalışma şekli">
+              <div className="workflow-step">
+                <span className="step-icon">PDF</span>
+                <div><b>Belgeni ekle</b><small>PDF dosyanı güvenle yükle</small></div>
+              </div>
+              <span className="workflow-arrow">→</span>
+              <div className="workflow-step">
+                <span className="step-icon">?</span>
+                <div><b>Merak ettiğini sor</b><small>Doğal Türkçe ile sorunu yaz</small></div>
+              </div>
+              <span className="workflow-arrow">→</span>
+              <div className="workflow-step">
+                <span className="step-icon accent">✓</span>
+                <div><b>Kaynaklı cevabı al</b><small>Dayandığı sayfayı birlikte gör</small></div>
+              </div>
+            </div>
+
+            <div className="trust-row">
+              <span>✓ Kaynak dışına çıkmaz</span>
+              <span>✓ Türkçe yanıt verir</span>
+              <span>✓ Belgelerin sende kalır</span>
             </div>
           </section>
 
@@ -480,12 +500,12 @@ function App() {
             </div>
 
             <div className="auth-intro">
-              <span className="auth-icon">{authMode === 'login' ? '↗' : '+'}</span>
+              <span className="auth-icon">{authMode === 'login' ? '→' : '+'}</span>
               <div>
-                <strong>{authMode === 'login' ? 'Tekrar hoş geldin' : 'Kendi alanını oluştur'}</strong>
+                <strong>{authMode === 'login' ? 'Çalışma alanına dön' : 'Kendi alanını oluştur'}</strong>
                 <p>{authMode === 'login'
-                  ? 'Belgelerine ve sohbetlerine kaldığın yerden devam et.'
-                  : 'Bir dakikadan kısa sürede kişisel belge asistanın hazır.'}</p>
+                  ? 'Belgelerin ve önceki sohbetlerin seni bekliyor.'
+                  : 'Dakikalar içinde kişisel belge asistanını kullanmaya başla.'}</p>
               </div>
             </div>
 
@@ -530,9 +550,11 @@ function App() {
                 />
               </label>
               <button disabled={authBusy} className="primary-btn" type="submit">
-                {authBusy ? 'İşleniyor…' : authMode === 'login' ? 'Giriş Yap' : 'Hesap Oluştur'}
+                {authBusy ? 'İşleniyor…' : authMode === 'login' ? 'Çalışma Alanını Aç' : 'Ücretsiz Hesap Oluştur'}
               </button>
             </form>
+
+            <p className="auth-security"><span>⌁</span> Verilerin üçüncü taraflarla paylaşılmaz.</p>
           </section>
         </main>
 
