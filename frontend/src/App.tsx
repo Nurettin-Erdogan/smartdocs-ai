@@ -30,7 +30,7 @@ import {
 type AuthMode = 'login' | 'register';
 type DocumentAction = { id: number; kind: 'delete' | 'reindex' } | null;
 
-const MAX_PDF_SIZE = 20 * 1024 * 1024;
+const MAX_PDF_SIZE = 100 * 1024 * 1024;
 
 const formatDate = (value: string) =>
   new Date(value).toLocaleString('tr-TR', {
@@ -263,7 +263,7 @@ function App() {
     if (file.size > MAX_PDF_SIZE) {
       setUploadFile(null);
       if (fileInputRef.current) fileInputRef.current.value = '';
-      setNotification({ kind: 'error', message: 'PDF dosyası en fazla 20 MB olabilir.' });
+      setNotification({ kind: 'error', message: 'PDF dosyası en fazla 100 MB olabilir.' });
       return;
     }
 
@@ -610,7 +610,7 @@ function App() {
               onChange={(event) => handleFileChange(event.target.files?.[0] ?? null)}
             />
           </label>
-          <small id="upload-help" className="muted">En fazla 20 MB · yalnızca PDF</small>
+          <small id="upload-help" className="muted">En fazla 100 MB · yalnızca PDF</small>
           <button
             type="button"
             className="primary-btn"

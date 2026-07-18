@@ -88,7 +88,7 @@ curl -X POST http://localhost:5129/api/documents/upload \
 Kurallar:
 
 - yalnızca `.pdf`
-- en fazla 20 MB
+- en fazla 100 MB
 - içerik `%PDF-` imzasıyla başlamalı
 - tek belgede en fazla yapılandırılmış `MaxChunks` değeri kadar parça
 

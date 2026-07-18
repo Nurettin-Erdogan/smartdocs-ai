@@ -100,7 +100,7 @@ Belge içindeki talimatlar veri kabul edilir; sistem prompt'u bunların uygulanm
 - token ömrü varsayılan 8 saattir ve saat kayması toleransı sıfırdır
 - upload, auth ve chat için ayrı sabit pencere hız limitleri vardır
 - fiziksel dosya adı kullanıcı girdisinden bağımsız UUID'dir
-- tek PDF 20 MB ve yapılandırılabilir chunk sayısıyla sınırlıdır
+- tek PDF 100 MB ve yapılandırılabilir chunk sayısıyla sınırlıdır
 - dış servis timeout'ları ve iptal token'ları tüm akışa taşınır
 
 ## Tutarlılık ve bilinen ölçek sınırları

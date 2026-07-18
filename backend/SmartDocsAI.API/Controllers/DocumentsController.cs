@@ -15,7 +15,7 @@ namespace SmartDocsAI.API.Controllers;
 [Route("api/[controller]")]
 public sealed class DocumentsController : ControllerBase
 {
-    private const long MaxFileSize = 20 * 1024 * 1024;
+    private const long MaxFileSize = 100 * 1024 * 1024;
     private const long MaxRequestSize = MaxFileSize + (512 * 1024);
     private const int EmbeddingBatchSize = 4;
     private readonly AppDbContext _context;
@@ -58,7 +58,7 @@ public sealed class DocumentsController : ControllerBase
 
         if (file.Length > MaxFileSize)
         {
-            return BadRequest(new { Message = "PDF dosyası en fazla 20 MB olabilir." });
+            return BadRequest(new { Message = "PDF dosyası en fazla 100 MB olabilir." });
         }
 
         var extension = Path.GetExtension(file.FileName).ToLowerInvariant();

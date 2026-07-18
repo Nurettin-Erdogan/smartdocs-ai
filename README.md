@@ -19,7 +19,7 @@ PDF → metin çıkarma → parçalara ayırma → Ollama embedding
 - Başarısız indekslemeyi tekrar deneme ve durum takibi
 - Yeni vektörleri önce yazarak eski indeksi koruyan güvenli yeniden indeksleme
 - JWT doğrulama, sahiplik kontrolleri ve endpoint bazlı hız sınırlama
-- 20 MB sınırı, PDF imza kontrolü, güvenli fiziksel dosya adı ve işlem sınırları
+- 100 MB sınırı, PDF imza kontrolü, güvenli fiziksel dosya adı ve işlem sınırları
 - Docker Compose, çok aşamalı üretim imajı ve GitHub Actions CI
 - Backend ve frontend birim testleri
 

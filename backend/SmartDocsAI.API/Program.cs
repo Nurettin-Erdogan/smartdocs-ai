@@ -141,6 +141,17 @@ await using (var scope = app.Services.CreateAsyncScope())
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     var configuration = scope.ServiceProvider.GetRequiredService<IConfiguration>();
     await DatabaseSeeder.SeedAsync(db, configuration, app.Environment.IsDevelopment());
+
+    try
+    {
+        var ollama = scope.ServiceProvider.GetRequiredService<IOllamaService>();
+        await ollama.WarmupAsync();
+    }
+    catch (Exception exception) when (
+        exception is HttpRequestException or TaskCanceledException or InvalidOperationException)
+    {
+        app.Logger.LogWarning(exception, "Ollama sohbet modeli başlangıçta ısıtılamadı.");
+    }
 }
 
 if (app.Environment.IsDevelopment())

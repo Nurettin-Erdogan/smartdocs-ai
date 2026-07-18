@@ -11,7 +11,9 @@ public sealed class OllamaService : IOllamaService
     private readonly HttpClient _httpClient;
     private readonly string _embeddingModel;
     private readonly string _chatModel;
-    private readonly string _keepAlive;
+    private readonly object _keepAlive;
+    private readonly int _numContext;
+    private readonly double _temperature;
 
     public OllamaService(HttpClient httpClient, IConfiguration configuration)
     {
@@ -21,7 +23,45 @@ public sealed class OllamaService : IOllamaService
 
         _embeddingModel = configuration["OllamaSettings:EmbeddingModel"] ?? "nomic-embed-text";
         _chatModel = configuration["OllamaSettings:ChatModel"] ?? "llama3";
-        _keepAlive = configuration["OllamaSettings:KeepAlive"] ?? "-1";
+        var configuredKeepAlive = configuration["OllamaSettings:KeepAlive"] ?? "-1";
+        _keepAlive = int.TryParse(configuredKeepAlive, out var keepAliveNumber)
+            ? keepAliveNumber
+            : configuredKeepAlive;
+        _numContext = Math.Clamp(
+            configuration.GetValue<int?>("OllamaSettings:NumContext") ?? 4096,
+            2048,
+            32768);
+        _temperature = Math.Clamp(
+            configuration.GetValue<double?>("OllamaSettings:Temperature") ?? 0.1,
+            0,
+            2);
+    }
+
+    public async Task WarmupAsync(CancellationToken cancellationToken = default)
+    {
+        using var response = await _httpClient.PostAsJsonAsync(
+            "/api/generate",
+            new
+            {
+                model = _chatModel,
+                prompt = string.Empty,
+                stream = false,
+                keep_alive = _keepAlive
+            },
+            cancellationToken);
+        response.EnsureSuccessStatusCode();
+
+        using var embeddingResponse = await _httpClient.PostAsJsonAsync(
+            "/api/embed",
+            new
+            {
+                model = _embeddingModel,
+                input = "hazırlık",
+                truncate = true,
+                keep_alive = _keepAlive
+            },
+            cancellationToken);
+        embeddingResponse.EnsureSuccessStatusCode();
     }
 
     public async Task<float[]> GetEmbeddingAsync(
@@ -32,7 +72,13 @@ public sealed class OllamaService : IOllamaService
 
         using var response = await _httpClient.PostAsJsonAsync(
             "/api/embed",
-            new { model = _embeddingModel, input = text, truncate = true },
+            new
+            {
+                model = _embeddingModel,
+                input = text,
+                truncate = true,
+                keep_alive = _keepAlive
+            },
             cancellationToken);
 
         response.EnsureSuccessStatusCode();
@@ -64,7 +110,12 @@ public sealed class OllamaService : IOllamaService
                 prompt,
                 stream = false,
                 keep_alive = _keepAlive,
-                options = new { num_predict = -1 }
+                options = new
+                {
+                    num_predict = -1,
+                    num_ctx = _numContext,
+                    temperature = _temperature
+                }
             },
             cancellationToken);
 
@@ -96,7 +147,12 @@ public sealed class OllamaService : IOllamaService
                 prompt,
                 stream = true,
                 keep_alive = _keepAlive,
-                options = new { num_predict = -1 }
+                options = new
+                {
+                    num_predict = -1,
+                    num_ctx = _numContext,
+                    temperature = _temperature
+                }
             })
         };
         using var response = await _httpClient.SendAsync(

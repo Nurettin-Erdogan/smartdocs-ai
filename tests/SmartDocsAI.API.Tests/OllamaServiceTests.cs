@@ -50,7 +50,8 @@ public sealed class OllamaServiceTests
         await service.GenerateAnswerAsync("soru");
 
         Assert.Contains("\"num_predict\":-1", requestBody);
-        Assert.Contains("\"keep_alive\":\"-1\"", requestBody);
+        Assert.Contains("\"keep_alive\":-1", requestBody);
+        Assert.Contains("\"num_ctx\":4096", requestBody);
     }
 
     [Fact]

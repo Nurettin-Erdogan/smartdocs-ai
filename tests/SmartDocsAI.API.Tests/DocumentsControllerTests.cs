@@ -157,6 +157,9 @@ public sealed class DocumentsControllerTests : IAsyncLifetime
 
     private sealed class FakeOllamaService : IOllamaService
     {
+        public Task WarmupAsync(CancellationToken cancellationToken = default) =>
+            Task.CompletedTask;
+
         public Task<float[]> GetEmbeddingAsync(string text, CancellationToken cancellationToken = default) =>
             Task.FromResult(new[] { 0.1f, 0.2f, 0.3f });
 
