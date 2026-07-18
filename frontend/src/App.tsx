@@ -71,6 +71,7 @@ function App() {
   const [session, setSession] = useState<AppSession | null>(() => loadSession());
   const [authMode, setAuthMode] = useState<AuthMode>('login');
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
+  const [selectedDocumentIds, setSelectedDocumentIds] = useState<number[]>([]);
   const [history, setHistory] = useState<ChatHistorySummary[]>([]);
   const [selectedConversationId, setSelectedConversationId] = useState<number | null>(null);
   const [selectedConversation, setSelectedConversation] = useState<ChatConversation | null>(null);
@@ -83,6 +84,7 @@ function App() {
   const [authBusy, setAuthBusy] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [isDraggingFile, setIsDraggingFile] = useState(false);
   const [asking, setAsking] = useState(false);
   const [conversationLoading, setConversationLoading] = useState(false);
   const [documentAction, setDocumentAction] = useState<DocumentAction>(null);
@@ -96,12 +98,14 @@ function App() {
     chatControllerRef.current?.abort();
     chatControllerRef.current = null;
     setDocuments([]);
+    setSelectedDocumentIds([]);
     setHistory([]);
     setSelectedConversationId(null);
     setSelectedConversation(null);
     setQuestion('');
     setSources([]);
     setUploadFile(null);
+    setIsDraggingFile(false);
     setRefreshing(false);
     setConversationLoading(false);
     setDocumentAction(null);
@@ -137,6 +141,13 @@ function App() {
       ]);
       if (controller.signal.aborted || refreshControllerRef.current !== controller) return;
       setDocuments(nextDocuments);
+      setSelectedDocumentIds((currentIds) => {
+        const readyIds = nextDocuments
+          .filter((document) => document.indexingStatus === 'Ready')
+          .map((document) => document.id);
+        const availableSelection = currentIds.filter((id) => readyIds.includes(id));
+        return availableSelection.length > 0 ? availableSelection : readyIds;
+      });
       setHistory(nextHistory);
       setSelectedConversationId((currentId) => {
         if (currentId !== null && nextHistory.some((item) => item.conversationId === currentId)) {
@@ -192,13 +203,19 @@ function App() {
 
   const dashboardStats = useMemo(() => {
     const totalMessages = history.reduce((count, item) => count + item.messageCount, 0);
+    const readyDocuments = documents.filter((document) => document.indexingStatus === 'Ready').length;
     return [
       { label: 'Toplam doküman', value: String(documents.length) },
-      { label: 'Son 50 sohbet', value: String(history.length) },
-      { label: 'Mesaj', value: String(totalMessages) },
-      { label: 'Son yükleme', value: documents[0]?.title ?? 'Yok' }
+      { label: 'Sohbete hazır', value: String(readyDocuments) },
+      { label: 'Sohbet', value: String(history.length) },
+      { label: 'Toplam mesaj', value: String(totalMessages) }
     ];
   }, [documents, history]);
+
+  const readyDocuments = useMemo(
+    () => documents.filter((document) => document.indexingStatus === 'Ready'),
+    [documents]
+  );
 
   const persistAuth = (token: string, user: SessionUser) => {
     const nextSession = { token, user };
@@ -250,6 +267,7 @@ function App() {
     setNotification(null);
     if (!file) {
       setUploadFile(null);
+      if (fileInputRef.current) fileInputRef.current.value = '';
       return;
     }
 
@@ -287,6 +305,10 @@ function App() {
           : `PDF yüklendi: ${formatIndexingStatus(result.indexingStatus ?? 'Pending')}.`
       });
       setUploadFile(null);
+      if (result.indexingStatus === 'Ready') {
+        setSelectedDocumentIds((currentIds) =>
+          currentIds.includes(result.id) ? currentIds : [...currentIds, result.id]);
+      }
       if (fileInputRef.current) fileInputRef.current.value = '';
       await refreshData(false);
     } catch (error) {
@@ -339,8 +361,8 @@ function App() {
       return;
     }
 
-    if (!documents.some((document) => document.indexingStatus === 'Ready')) {
-      setNotification({ kind: 'error', message: 'Önce hazır durumunda bir PDF yüklemelisin.' });
+    if (selectedDocumentIds.length === 0) {
+      setNotification({ kind: 'error', message: 'Soru sormak için en az bir hazır belge seçmelisin.' });
       return;
     }
 
@@ -354,7 +376,8 @@ function App() {
     try {
       const result = await api.askChat({
         question: trimmedQuestion,
-        conversationId: selectedConversationId
+        conversationId: selectedConversationId,
+        documentIds: selectedDocumentIds
       }, {
         signal: chatController.signal,
         onStart: ({ conversationId, sources: nextSources }) => {
@@ -600,17 +623,49 @@ function App() {
               {refreshing ? 'Yenileniyor…' : 'Yenile'}
             </button>
           </div>
-          <label className="file-label">
-            PDF seç
+          <label
+            className={`file-dropzone ${isDraggingFile ? 'dragging' : ''}`}
+            onDragEnter={(event) => {
+              event.preventDefault();
+              setIsDraggingFile(true);
+            }}
+            onDragOver={(event) => event.preventDefault()}
+            onDragLeave={(event) => {
+              event.preventDefault();
+              if (event.currentTarget === event.target) setIsDraggingFile(false);
+            }}
+            onDrop={(event) => {
+              event.preventDefault();
+              setIsDraggingFile(false);
+              handleFileChange(event.dataTransfer.files?.[0] ?? null);
+            }}
+          >
+            <span className="upload-icon">PDF</span>
+            <span>
+              <strong>{uploadFile ? uploadFile.name : 'PDF dosyanı seç'}</strong>
+              <small>{uploadFile ? formatSize(uploadFile.size) : 'veya buraya sürükleyip bırak'}</small>
+            </span>
             <input
               ref={fileInputRef}
+              className="file-input-hidden"
               type="file"
               accept="application/pdf,.pdf"
               aria-describedby="upload-help"
               onChange={(event) => handleFileChange(event.target.files?.[0] ?? null)}
             />
           </label>
-          <small id="upload-help" className="muted">En fazla 100 MB · yalnızca PDF</small>
+          <div className="upload-help-row">
+            <small id="upload-help" className="muted">En fazla 100 MB · yalnızca PDF</small>
+            {uploadFile && (
+              <button
+                type="button"
+                className="text-btn"
+                onClick={() => handleFileChange(null)}
+              >
+                Seçimi kaldır
+              </button>
+            )}
+          </div>
           <button
             type="button"
             className="primary-btn"
@@ -719,6 +774,48 @@ function App() {
               <p className="muted">Sorunu sor; yanıtın dayandığı kaynakları birlikte incele.</p>
             </div>
             <span className="count-badge">{selectedConversationId ?? 'Yeni'}</span>
+          </div>
+
+          <div className="document-scope" aria-label="Cevapta kullanılacak belgeler">
+            <div className="scope-head">
+              <div>
+                <strong>Cevap kapsamı</strong>
+                <small>{selectedDocumentIds.length} belge seçili</small>
+              </div>
+              {readyDocuments.length > 1 && (
+                <button
+                  type="button"
+                  className="text-btn"
+                  onClick={() => setSelectedDocumentIds(readyDocuments.map((document) => document.id))}
+                >
+                  Tümünü seç
+                </button>
+              )}
+            </div>
+            <div className="scope-list">
+              {readyDocuments.length === 0 && (
+                <span className="muted">Sohbete hazır belge bulunmuyor.</span>
+              )}
+              {readyDocuments.map((document) => {
+                const isSelected = selectedDocumentIds.includes(document.id);
+                return (
+                  <button
+                    key={document.id}
+                    type="button"
+                    className={`scope-chip ${isSelected ? 'selected' : ''}`}
+                    aria-pressed={isSelected}
+                    title={document.title}
+                    onClick={() => setSelectedDocumentIds((currentIds) =>
+                      isSelected
+                        ? currentIds.filter((id) => id !== document.id)
+                        : [...currentIds, document.id])}
+                  >
+                    <span>{isSelected ? '✓' : '+'}</span>
+                    {document.title}
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
           <ConversationThread

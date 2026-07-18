@@ -70,7 +70,7 @@ describe('extractApiErrorMessage', () => {
     const controller = new AbortController();
 
     const result = await api.askChat(
-      { question: 'Selam' },
+      { question: 'Selam', documentIds: [3, 9] },
       { onChunk: (content) => chunks.push(content), signal: controller.signal }
     );
 
@@ -79,5 +79,9 @@ describe('extractApiErrorMessage', () => {
     const headers = fetchMock.mock.calls[0]?.[1]?.headers as Headers;
     expect(headers.get('Accept')).toBe('application/x-ndjson');
     expect(fetchMock.mock.calls[0]?.[1]?.signal).toBe(controller.signal);
+    expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toEqual({
+      question: 'Selam',
+      documentIds: [3, 9]
+    });
   });
 });

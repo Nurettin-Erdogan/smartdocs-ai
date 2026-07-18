@@ -10,5 +10,8 @@ namespace SmartDocsAI.API.DTOs
 
         [Range(1, int.MaxValue, ErrorMessage = "Geçerli bir sohbet seçilmelidir.")]
         public int? ConversationId { get; set; }
+
+        [MaxLength(50, ErrorMessage = "Bir sohbette en fazla 50 belge seçilebilir.")]
+        public List<int>? DocumentIds { get; set; }
     }
 }

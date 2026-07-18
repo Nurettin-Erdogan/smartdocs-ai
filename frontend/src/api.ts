@@ -58,6 +58,7 @@ export type ChatResponse = {
 export type ChatRequest = {
   question: string;
   conversationId?: number | null;
+  documentIds?: number[];
 };
 
 export type ChatStreamCallbacks = {

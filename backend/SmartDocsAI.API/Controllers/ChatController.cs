@@ -98,13 +98,36 @@ public sealed class ChatController : ControllerBase
                 .ToListAsync(cancellationToken);
         }
 
-        var readyDocumentVersions = await _context.Documents
+        var selectedDocumentIds = request.DocumentIds?
+            .Distinct()
+            .ToArray();
+        if (selectedDocumentIds is { Length: 0 } ||
+            selectedDocumentIds?.Any(id => id <= 0) == true)
+        {
+            return BadRequest(new { Message = "En az bir geçerli belge seçmelisin." });
+        }
+
+        var readyDocumentsQuery = _context.Documents
             .AsNoTracking()
-            .Where(document => document.UserId == userId && document.IndexingStatus == "Ready")
+            .Where(document => document.UserId == userId && document.IndexingStatus == "Ready");
+
+        if (selectedDocumentIds is not null)
+        {
+            readyDocumentsQuery = readyDocumentsQuery
+                .Where(document => selectedDocumentIds.Contains(document.Id));
+        }
+
+        var readyDocumentVersions = await readyDocumentsQuery
             .ToDictionaryAsync(
                 document => document.Id,
                 document => document.CurrentIndexVersion,
                 cancellationToken);
+
+        if (selectedDocumentIds is not null &&
+            readyDocumentVersions.Count != selectedDocumentIds.Length)
+        {
+            return BadRequest(new { Message = "Seçtiğin belgelerden biri artık kullanılamıyor. Belge listesini yenileyip tekrar dene." });
+        }
 
         if (readyDocumentVersions.Count == 0)
         {
