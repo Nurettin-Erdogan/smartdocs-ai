@@ -31,6 +31,7 @@ type AuthMode = 'login' | 'register';
 type DocumentAction = { id: number; kind: 'delete' | 'reindex' } | null;
 
 const MAX_PDF_SIZE = 100 * 1024 * 1024;
+const ACTIVE_DOCUMENT_STATUSES = ['Pending', 'Extracting', 'Indexing', 'RetryWaiting'];
 
 const formatDate = (value: string) =>
   new Date(value).toLocaleString('tr-TR', {
@@ -49,7 +50,10 @@ const formatIndexingStatus = (status: string) => {
     case 'Ready': return 'Hazır';
     case 'Failed': return 'İndekslenemedi';
     case 'NoContent': return 'Metin bulunamadı';
-    case 'Pending': return 'İşleniyor';
+    case 'Pending': return 'Sırada bekliyor';
+    case 'Extracting': return 'Metin çıkarılıyor';
+    case 'Indexing': return 'Yapay zekâ hazırlanıyor';
+    case 'RetryWaiting': return 'Otomatik tekrar denenecek';
     case 'Deleting': return 'Silme bekliyor';
     default: return status || 'Bilinmiyor';
   }
@@ -169,6 +173,16 @@ function App() {
   useEffect(() => {
     if (session) void refreshData(true);
   }, [session, refreshData]);
+
+  useEffect(() => {
+    if (!session || !documents.some((document) =>
+      ACTIVE_DOCUMENT_STATUSES.includes(document.indexingStatus))) {
+      return;
+    }
+
+    const timer = window.setInterval(() => void refreshData(false), 2_000);
+    return () => window.clearInterval(timer);
+  }, [documents, refreshData, session]);
 
   useEffect(() => {
     if (!session || selectedConversationId === null) {
@@ -299,10 +313,8 @@ function App() {
     try {
       const result = await api.uploadDocument(uploadFile);
       setNotification({
-        kind: result.indexingStatus === 'Ready' ? 'success' : 'info',
-        message: result.indexingStatus === 'Ready'
-          ? 'PDF yüklendi ve sohbete hazır.'
-          : `PDF yüklendi: ${formatIndexingStatus(result.indexingStatus ?? 'Pending')}.`
+        kind: 'info',
+        message: 'PDF alındı. Arka planda hazırlanıyor; bu sırada çalışmaya devam edebilirsin.'
       });
       setUploadFile(null);
       if (result.indexingStatus === 'Ready') {
@@ -343,7 +355,7 @@ function App() {
     setNotification(null);
     try {
       await api.reindexDocument(id);
-      setNotification({ kind: 'success', message: 'Belge yeniden indekslendi.' });
+      setNotification({ kind: 'info', message: 'Belge yeniden hazırlama kuyruğuna alındı.' });
       await refreshData(false);
     } catch (error) {
       setNotification({ kind: 'error', message: errorMessage(error, 'Belge yeniden indekslenemedi.') });
@@ -735,6 +747,14 @@ function App() {
                   </span>
                   <span>{formatDate(document.uploadDate)}</span>
                 </div>
+                {ACTIVE_DOCUMENT_STATUSES.includes(document.indexingStatus) && (
+                  <div className={`processing-track processing-${document.indexingStatus.toLowerCase()}`}>
+                    <span />
+                  </div>
+                )}
+                {document.indexingError && (
+                  <p className="document-error" role="status">{document.indexingError}</p>
+                )}
                 <div className="doc-actions">
                   {document.indexingStatus === 'Failed' && (
                     <button
@@ -752,7 +772,8 @@ function App() {
                     type="button"
                     className="ghost-btn danger"
                     onClick={() => void handleDelete(document)}
-                    disabled={anyDocumentAction}
+                    disabled={anyDocumentAction ||
+                      ACTIVE_DOCUMENT_STATUSES.includes(document.indexingStatus)}
                   >
                     {documentAction?.id === document.id && documentAction.kind === 'delete'
                       ? 'Siliniyor…'

@@ -92,9 +92,6 @@ public sealed class DocumentsControllerTests : IAsyncLifetime
         var controller = new DocumentsController(
             _context,
             new FakeEnvironment(),
-            new FakeDocumentProcessor(),
-            new FakeOllamaService(),
-            new FakeQdrantService(),
             _deletionService,
             NullLogger<DocumentsController>.Instance);
         controller.ControllerContext = new ControllerContext

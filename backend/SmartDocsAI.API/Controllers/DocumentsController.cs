@@ -17,29 +17,19 @@ public sealed class DocumentsController : ControllerBase
 {
     private const long MaxFileSize = 100 * 1024 * 1024;
     private const long MaxRequestSize = MaxFileSize + (512 * 1024);
-    private const int EmbeddingBatchSize = 4;
     private readonly AppDbContext _context;
     private readonly IWebHostEnvironment _environment;
-    private readonly IDocumentProcessor _documentProcessor;
-    private readonly IOllamaService _ollamaService;
-    private readonly IQdrantService _qdrantService;
     private readonly IDocumentDeletionService _documentDeletionService;
     private readonly ILogger<DocumentsController> _logger;
 
     public DocumentsController(
         AppDbContext context,
         IWebHostEnvironment environment,
-        IDocumentProcessor documentProcessor,
-        IOllamaService ollamaService,
-        IQdrantService qdrantService,
         IDocumentDeletionService documentDeletionService,
         ILogger<DocumentsController> logger)
     {
         _context = context;
         _environment = environment;
-        _documentProcessor = documentProcessor;
-        _ollamaService = ollamaService;
-        _qdrantService = qdrantService;
         _documentDeletionService = documentDeletionService;
         _logger = logger;
     }
@@ -98,9 +88,6 @@ public sealed class DocumentsController : ControllerBase
         var uniqueFileName = $"{Guid.NewGuid():N}.pdf";
         var filePath = Path.Combine(uploadsFolder, uniqueFileName);
         var uploadCommitted = false;
-        Document? document = null;
-
-        await using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
 
         try
         {
@@ -115,7 +102,7 @@ public sealed class DocumentsController : ControllerBase
                 await file.CopyToAsync(stream, cancellationToken);
             }
 
-            document = new Document
+            var document = new Document
             {
                 UserId = userId,
                 Title = title,
@@ -129,42 +116,9 @@ public sealed class DocumentsController : ControllerBase
 
             _context.Documents.Add(document);
             await _context.SaveChangesAsync(cancellationToken);
-
-            var chunks = await _documentProcessor.ProcessPdfAsync(document, cancellationToken);
-            _context.Chunks.AddRange(chunks);
-            await _context.SaveChangesAsync(cancellationToken);
-            await transaction.CommitAsync(cancellationToken);
             uploadCommitted = true;
 
-            try
-            {
-                await IndexDocumentAsync(document, chunks, cancellationToken);
-            }
-            catch (OperationCanceledException)
-            {
-                throw;
-            }
-            catch (Exception exception)
-            {
-                _logger.LogError(exception, "Document {DocumentId} could not be indexed.", document.Id);
-                document.IndexingStatus = "Failed";
-                document.IndexingError = LimitIndexingError(exception);
-            }
-
-            await _context.SaveChangesAsync(cancellationToken);
-
-            return Ok(ToDocumentDto(document));
-        }
-        catch (InvalidDataException exception) when (!uploadCommitted)
-        {
-            return BadRequest(new { Message = exception.Message });
-        }
-        catch (OperationCanceledException) when (document is not null && uploadCommitted)
-        {
-            document.IndexingStatus = "Failed";
-            document.IndexingError = "İndeksleme isteği iptal edildi.";
-            await TrySaveIndexingStateAsync();
-            throw;
+            return Accepted(ToDocumentDto(document));
         }
         finally
         {
@@ -195,7 +149,8 @@ public sealed class DocumentsController : ControllerBase
                 FileType = document.FileType,
                 FileSize = document.FileSize,
                 UploadDate = document.UploadDate,
-                IndexingStatus = document.IndexingStatus
+                IndexingStatus = document.IndexingStatus,
+                IndexingError = document.IndexingError
             })
             .ToListAsync(cancellationToken);
 
@@ -222,9 +177,9 @@ public sealed class DocumentsController : ControllerBase
             return NotFound(new { Message = "Belge bulunamadı veya bu belge üzerinde işlem yapma yetkiniz yok." });
         }
 
-        if (document.IndexingStatus == "Pending")
+        if (document.IndexingStatus is "Pending" or "Extracting" or "Indexing")
         {
-            return Conflict(new { Message = "İndeksleme sürerken belge silinemez." });
+            return Conflict(new { Message = "Belge işlenirken silinemez." });
         }
 
         if (document.IndexingStatus != "Deleting")
@@ -295,7 +250,7 @@ public sealed class DocumentsController : ControllerBase
             return NotFound(new { Message = "Belge bulunamadı veya bu belge üzerinde işlem yapma yetkiniz yok." });
         }
 
-        if (documentSnapshot.IndexingStatus is "Pending" or "Deleting")
+        if (documentSnapshot.IndexingStatus is "Pending" or "Extracting" or "Indexing" or "Deleting")
         {
             return Conflict(new { Message = "Bu belge üzerinde başka bir işlem devam ediyor." });
         }
@@ -309,7 +264,10 @@ public sealed class DocumentsController : ControllerBase
             .ExecuteUpdateAsync(
                 setters => setters
                     .SetProperty(item => item.IndexingStatus, "Pending")
-                    .SetProperty(item => item.IndexingError, (string?)null),
+                    .SetProperty(item => item.IndexingError, (string?)null)
+                    .SetProperty(item => item.ProcessingAttemptCount, 0)
+                    .SetProperty(item => item.NextProcessingAttemptAt, (DateTime?)null)
+                    .SetProperty(item => item.ProcessingStartedAt, (DateTime?)null),
                 cancellationToken);
 
         if (transitioned == 0)
@@ -317,134 +275,24 @@ public sealed class DocumentsController : ControllerBase
             return Conflict(new { Message = "Bu belge üzerinde başka bir işlem devam ediyor." });
         }
 
-        var document = await _context.Documents
-            .Include(item => item.Chunks)
-            .FirstOrDefaultAsync(
-                item => item.Id == id && item.UserId == userId,
-                cancellationToken);
-
-        if (document is null)
+        var queuedDocument = new Document
         {
-            return NotFound(new { Message = "Belge bulunamadı." });
-        }
+            Id = documentSnapshot.Id,
+            Title = documentSnapshot.Title,
+            FileName = documentSnapshot.FileName,
+            FileType = documentSnapshot.FileType,
+            FileSize = documentSnapshot.FileSize,
+            UploadDate = documentSnapshot.UploadDate,
+            IndexingStatus = "Pending"
+        };
 
-        var chunks = document.Chunks.OrderBy(chunk => chunk.ChunkIndex).ToList();
-        if (chunks.Count == 0)
-        {
-            document.IndexingStatus = "NoContent";
-            document.IndexingError = "Belgeden işlenecek metin çıkarılamadı.";
-            await _context.SaveChangesAsync(cancellationToken);
-            return BadRequest(new { Message = document.IndexingError });
-        }
-
-        try
-        {
-            await IndexDocumentAsync(document, chunks, cancellationToken);
-            await _context.SaveChangesAsync(cancellationToken);
-            return Ok(ToDocumentDto(document));
-        }
-        catch (OperationCanceledException)
-        {
-            document.IndexingStatus = previousStatus == "Ready" ? "Ready" : "Failed";
-            document.IndexingError = "Yeniden indeksleme isteği iptal edildi; önceki indeks korundu.";
-            await TrySaveIndexingStateAsync();
-            throw;
-        }
-        catch (Exception exception)
-        {
-            _logger.LogError(exception, "Document {DocumentId} could not be reindexed.", document.Id);
-            document.IndexingStatus = previousStatus == "Ready" ? "Ready" : "Failed";
-            document.IndexingError = LimitIndexingError(exception);
-            await _context.SaveChangesAsync(CancellationToken.None);
-
-            return StatusCode(
-                StatusCodes.Status503ServiceUnavailable,
-                new
-                {
-                    Message = previousStatus == "Ready"
-                        ? "Yeniden indeksleme başarısız oldu; çalışan önceki indeks korundu."
-                        : "Belge indekslenemedi. Ollama ve Qdrant servislerini kontrol edin."
-                });
-        }
-    }
-
-    private async Task IndexDocumentAsync(
-        Document document,
-        List<Chunk> chunks,
-        CancellationToken cancellationToken)
-    {
-        if (chunks.Count == 0)
-        {
-            document.IndexingStatus = "NoContent";
-            document.IndexingError = "Belgeden işlenecek metin çıkarılamadı.";
-            return;
-        }
-
-        var embeddings = await GenerateEmbeddingsInBatchesAsync(chunks, cancellationToken);
-        var indexVersion = Guid.NewGuid().ToString("N");
-
-        // New vectors are fully written before older versions are removed.
-        await _qdrantService.SaveChunksAsync(
-            chunks,
-            embeddings,
-            indexVersion,
-            cancellationToken);
-
-        try
-        {
-            await _qdrantService.DeleteDocumentChunksExceptVersionAsync(
-                document.Id,
-                indexVersion,
-                cancellationToken);
-        }
-        catch (Exception cleanupException) when (cleanupException is not OperationCanceledException)
-        {
-            // The fresh version is usable. Duplicate old points are deduplicated during search.
-            _logger.LogWarning(
-                cleanupException,
-                "Old Qdrant vectors for document {DocumentId} could not be cleaned up.",
-                document.Id);
-        }
-
-        document.IndexingStatus = "Ready";
-        document.IndexingError = null;
-        document.CurrentIndexVersion = indexVersion;
-    }
-
-    private async Task<List<float[]>> GenerateEmbeddingsInBatchesAsync(
-        List<Chunk> chunks,
-        CancellationToken cancellationToken)
-    {
-        var embeddings = new List<float[]>(chunks.Count);
-
-        foreach (var batch in chunks.Chunk(EmbeddingBatchSize))
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            var batchEmbeddings = await Task.WhenAll(
-                batch.Select(chunk =>
-                    _ollamaService.GetEmbeddingAsync(chunk.Content, cancellationToken)));
-            embeddings.AddRange(batchEmbeddings);
-        }
-
-        return embeddings;
+        return Accepted(ToDocumentDto(queuedDocument));
     }
 
     private bool TryGetUserId(out int userId)
     {
         var claim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         return int.TryParse(claim, out userId);
-    }
-
-    private async Task TrySaveIndexingStateAsync()
-    {
-        try
-        {
-            await _context.SaveChangesAsync(CancellationToken.None);
-        }
-        catch (Exception exception)
-        {
-            _logger.LogError(exception, "The canceled indexing state could not be persisted.");
-        }
     }
 
     private static DocumentDto ToDocumentDto(Document document) => new()
@@ -455,7 +303,8 @@ public sealed class DocumentsController : ControllerBase
         FileType = document.FileType,
         FileSize = document.FileSize,
         UploadDate = document.UploadDate,
-        IndexingStatus = document.IndexingStatus
+        IndexingStatus = document.IndexingStatus,
+        IndexingError = document.IndexingError
     };
 
     private static string LimitIndexingError(Exception exception)

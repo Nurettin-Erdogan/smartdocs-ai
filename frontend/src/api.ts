@@ -18,6 +18,7 @@ export type DocumentItem = {
   fileSize: number;
   uploadDate: string;
   indexingStatus: string;
+  indexingError?: string | null;
 };
 
 export type ChatSource = {

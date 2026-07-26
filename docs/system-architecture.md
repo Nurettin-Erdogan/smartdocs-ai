@@ -59,13 +59,16 @@ Embedding modelinin boyutu Qdrant `VectorSize` ile aynı olmalıdır. Varsayıla
 2. Dosya uzantısı, boyutu ve `%PDF-` imzası doğrulanır.
 3. PDF benzersiz fiziksel adla `Uploads` dizinine yazılır.
 4. Belge kaydı `Pending` olarak oluşturulur.
-5. PdfPig sayfa metinlerini çıkarır; metin 800 karakterlik, 150 karakter örtüşmeli parçalara bölünür.
-6. Belge ve parçalar PostgreSQL transaction'ında kalıcılaştırılır.
-7. Parçaların embedding'leri sınırlı paralel paketlerde üretilir.
-8. Qdrant koleksiyonu yoksa oluşturulur ve vektörler paketler hâlinde yazılır.
-9. Belge `Ready`, `Failed` veya `NoContent` durumuna geçirilir.
+5. API `202 Accepted` döner; tarayıcının yükleme bağlantısı artık işlemeyi tutmaz.
+6. PostgreSQL tabanlı işçi belgeyi atomik olarak sahiplenip `Extracting` durumuna geçirir.
+7. PdfPig sayfa metinlerini çıkarır; metin 800 karakterlik, 150 karakter örtüşmeli parçalara bölünür.
+8. Belge `Indexing` durumuna geçer ve embedding'ler sınırlı paralel paketlerde üretilir.
+9. Qdrant koleksiyonu yoksa oluşturulur ve vektörler paketler hâlinde yazılır.
+10. Belge `Ready`, `Failed` veya `NoContent` durumuna geçirilir.
 
-İndeksleme başarısız olsa bile başarıyla yüklenmiş PDF ve parçalar korunur; kullanıcı yeniden indeksleme yapabilir.
+Geçici hata oluşursa belge gecikmeli olarak üç kez otomatik denenir. Süresi dolan işlem
+kiraları başka bir işçi tarafından geri alınabilir. İndeksleme başarısız olsa bile PDF ve
+çıkarılmış parçalar korunur; kullanıcı manuel yeniden indeksleme de başlatabilir.
 
 ## Güvenli yeniden indeksleme
 
@@ -105,6 +108,6 @@ Belge içindeki talimatlar veri kabul edilir; sistem prompt'u bunların uygulanm
 
 ## Tutarlılık ve bilinen ölçek sınırları
 
-PostgreSQL ile Qdrant arasında dağıtık transaction yoktur. Kod güvenli işlem sırasıyla riski azaltır; ancak çok düğümlü üretim sisteminde kalıcı iş kuyruğu, outbox ve periyodik artık vektör temizliği eklenmelidir.
-
-Aktif yeniden indeksleme kilidi süreç içindedir. Tek uygulama örneğinde yeterlidir; yatay ölçeklemede Redis/PostgreSQL tabanlı dağıtık kilit veya iş kuyruğu gerekir.
+PostgreSQL ile Qdrant arasında dağıtık transaction yoktur. Kod kalıcı durum, işlem kirası
+ve güvenli yazma sırasıyla riski azaltır; çok düğümlü büyük kurulumlarda outbox ve
+periyodik artık vektör temizliği yine önerilir.

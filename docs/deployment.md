@@ -143,7 +143,8 @@ Cors__AllowedOrigins__0=https://smartdocs.example.com
 Tek makine Compose kurulumu bir uygulama örneğine yöneliktir. Birden çok API örneğinde:
 
 - migration'ı uygulama başlangıcından ayrı tekil işe taşıyın
-- yeniden indekslemeyi kalıcı kuyruğa alın
+- indeksleme kuyruğu için `DocumentIndexingSettings` kiralama, deneme ve gecikme
+  değerlerini iş yükünüze göre ayarlayın
 - dağıtık kilit kullanın
 - `Uploads` için paylaşımlı nesne depolama kullanın
 - Qdrant ve PostgreSQL'i yönetilen/yüksek erişilebilir kurun

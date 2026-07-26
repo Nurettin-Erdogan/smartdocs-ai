@@ -145,3 +145,14 @@ button:focus-visible,.file-dropzone:focus-within{outline:3px solid rgba(40,100,2
 @media (max-width:1280px){.main-grid{grid-template-columns:1fr}.documents-panel,.chat-panel{min-height:auto}}
 @media (max-width:1100px){.app-shell{grid-template-columns:1fr}.sidebar{position:static}}
 @media (max-width:680px){html,body,#root{max-width:100%;overflow-x:hidden}.app-shell{width:100%;max-width:100%;overflow:hidden}.stat-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.stat-card{overflow:hidden}.main-grid{width:100%}.scope-head{align-items:flex-start}.scope-list{margin-right:-.4rem}.doc-meta{display:grid;grid-template-columns:auto auto;align-items:center}.doc-meta>span:last-child{grid-column:1/-1}}
+
+.status-extracting,.status-indexing{color:#1e63c8;background:#e9f2ff}
+.status-retrywaiting{color:#94620a;background:#fff6dd}
+.processing-track{height:.32rem;overflow:hidden;border-radius:999px;background:#e7ecf5}
+.processing-track span{display:block;height:100%;border-radius:inherit;background:linear-gradient(90deg,var(--blue),#75a0ff);transition:width .35s ease}
+.processing-pending span,.processing-retrywaiting span{width:18%}.processing-extracting span{width:52%}.processing-indexing span{width:82%}
+.processing-track:not(.processing-pending) span{position:relative;overflow:hidden}
+.processing-track:not(.processing-pending) span::after{content:'';position:absolute;inset:0;background:linear-gradient(90deg,transparent,rgba(255,255,255,.7),transparent);animation:processing-shine 1.5s infinite}
+.document-error{padding:.55rem .65rem;border-radius:10px;color:#a52f49!important;background:#fff0f3;font-size:.72rem!important}
+@keyframes processing-shine{from{transform:translateX(-100%)}to{transform:translateX(100%)}}
+@media (prefers-reduced-motion:reduce){.processing-track span::after{animation:none}}

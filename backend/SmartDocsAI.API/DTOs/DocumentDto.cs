@@ -11,5 +11,6 @@ namespace SmartDocsAI.API.DTOs
         public long FileSize { get; set; }
         public DateTime UploadDate { get; set; }
         public string IndexingStatus { get; set; } = string.Empty;
+        public string? IndexingError { get; set; }
     }
 }

@@ -95,7 +95,9 @@ builder.Services.AddDbContext<AppDbContext>(options => options.UseNpgsql(connect
 builder.Services.AddScoped<ITokenService, TokenService>();
 builder.Services.AddSingleton<DocumentProcessingGate>();
 builder.Services.AddScoped<IDocumentProcessor, DocumentProcessor>();
+builder.Services.AddScoped<IDocumentIndexingService, DocumentIndexingService>();
 builder.Services.AddScoped<IDocumentDeletionService, DocumentDeletionService>();
+builder.Services.AddHostedService<PendingDocumentIndexingWorker>();
 builder.Services.AddHostedService<PendingDocumentDeletionWorker>();
 builder.Services.AddHttpClient<IOllamaService, OllamaService>(client =>
 {

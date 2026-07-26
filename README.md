@@ -138,7 +138,7 @@ CI aynı kontrolleri çalıştırır ve son aşamada üretim Docker imajını de
 | `POST` | `/api/auth/register` | Hesap oluşturur ve JWT döndürür |
 | `POST` | `/api/auth/login` | Oturum açar ve JWT döndürür |
 | `GET` | `/api/documents` | Kullanıcının belgelerini listeler |
-| `POST` | `/api/documents/upload` | PDF yükler ve indeksler |
+| `POST` | `/api/documents/upload` | PDF'yi kabul eder ve arka plan kuyruğuna alır |
 | `DELETE` | `/api/documents/{id}` | Belgeyi ve vektörlerini siler |
 | `POST` | `/api/documents/{id}/reindex` | Belgeyi yeniden indeksler |
 | `POST` | `/api/chat` | Kaynaklı cevap üretir |
@@ -150,7 +150,10 @@ Korumalı endpointlerde `Authorization: Bearer <token>` başlığı gerekir. İs
 
 ## Belge durumları
 
-- `Pending`: indeksleme sürüyor
+- `Pending`: belge işleme sırasında bekliyor
+- `Extracting`: PDF metni çıkarılıyor
+- `Indexing`: yapay zekâ arama indeksi hazırlanıyor
+- `RetryWaiting`: geçici hata sonrası otomatik yeniden deneme bekleniyor
 - `Ready`: sohbet aramasına hazır
 - `Failed`: dış servis veya indeksleme hatası oluştu; tekrar denenebilir
 - `NoContent`: PDF'den kullanılabilir metin çıkarılamadı

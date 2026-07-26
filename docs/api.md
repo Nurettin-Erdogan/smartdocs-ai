@@ -92,7 +92,9 @@ Kurallar:
 - içerik `%PDF-` imzasıyla başlamalı
 - tek belgede en fazla yapılandırılmış `MaxChunks` değeri kadar parça
 
-Başarılı yanıt (`200`) belge nesnesidir. İndeksleme dış servis nedeniyle tamamlanamazsa yükleme korunur ve `indexingStatus` değeri `Failed` olur; kullanıcı daha sonra yeniden indeksleyebilir. PDF okunamıyorsa `400` döner.
+Başarılı yanıt `202 Accepted` ve `Pending` durumundaki belge nesnesidir. Metin çıkarma ve
+indeksleme kalıcı arka plan kuyruğunda devam eder. Geçici dış servis hataları otomatik
+olarak yeniden denenir; son deneme de başarısız olursa durum `Failed` olur.
 
 ### Silme
 
@@ -104,9 +106,11 @@ Belge kullanıcının değilse veya yoksa `404` döner. Qdrant'taki hazır indek
 
 `POST /api/documents/{id}/reindex`
 
-Yeni embedding sürümü tamamen yazılmadan eski çalışan sürüm silinmez. Yeniden indeksleme başarısız olursa daha önce `Ready` olan indeks kullanılmaya devam eder.
+Başarılı yanıt `202 Accepted` değeridir. Yeni embedding sürümü tamamen yazılmadan eski
+çalışan sürüm silinmez. Yeniden indeksleme başarısız olursa daha önce `Ready` olan indeks
+kullanılmaya devam eder.
 
-Olası yanıtlar: `200`, `400` içerik yok, `404`, `409` işlem sürüyor, `503` Ollama/Qdrant erişilemiyor.
+Olası yanıtlar: `202`, `404`, `409` işlem sürüyor.
 
 ## Sohbet
 
