@@ -107,6 +107,44 @@ public sealed class DocumentIndexingServiceTests : IAsyncLifetime
         Assert.NotNull(stored.NextProcessingAttemptAt);
     }
 
+    [Fact]
+    public async Task ProcessAsync_ActivatesNewVersionBeforeDeletingOldVectors()
+    {
+        var document = await AddDocumentAsync();
+        document.CurrentIndexVersion = "old-version";
+        document.Chunks.Add(new Chunk
+        {
+            DocumentId = document.Id,
+            ChunkIndex = 0,
+            Content = "mevcut metin",
+            PageNumber = 1
+        });
+        await _context.SaveChangesAsync();
+
+        var newVersionWasActiveDuringCleanup = false;
+        var qdrant = new FakeQdrantService
+        {
+            DeleteExceptVersionHandler = async (_, newVersion, cancellationToken) =>
+            {
+                await using var verificationContext = new AppDbContext(
+                    new DbContextOptionsBuilder<AppDbContext>()
+                        .UseSqlite(_connection)
+                        .Options);
+                var stored = await verificationContext.Documents
+                    .AsNoTracking()
+                    .SingleAsync(item => item.Id == document.Id, cancellationToken);
+                newVersionWasActiveDuringCleanup =
+                    stored.IndexingStatus == "Ready" &&
+                    stored.CurrentIndexVersion == newVersion;
+            }
+        };
+        var service = CreateService(new FakeDocumentProcessor(), qdrant);
+
+        await service.ProcessAsync(document.Id);
+
+        Assert.True(newVersionWasActiveDuringCleanup);
+    }
+
     private DocumentIndexingService CreateService(
         IDocumentProcessor processor,
         IQdrantService qdrant,
@@ -190,6 +228,7 @@ public sealed class DocumentIndexingServiceTests : IAsyncLifetime
     {
         public Exception? Exception { get; set; }
         public int SaveCalls { get; private set; }
+        public Func<int, string, CancellationToken, Task>? DeleteExceptVersionHandler { get; init; }
 
         public Task CreateCollectionIfNotExistsAsync(CancellationToken cancellationToken = default) =>
             Task.CompletedTask;
@@ -211,7 +250,9 @@ public sealed class DocumentIndexingServiceTests : IAsyncLifetime
         public Task DeleteDocumentChunksExceptVersionAsync(
             int documentId,
             string indexVersion,
-            CancellationToken cancellationToken = default) => Task.CompletedTask;
+            CancellationToken cancellationToken = default) =>
+            DeleteExceptVersionHandler?.Invoke(documentId, indexVersion, cancellationToken)
+            ?? Task.CompletedTask;
 
         public Task<List<QdrantSearchResult>> SearchSimilarChunksAsync(
             float[] queryVector,

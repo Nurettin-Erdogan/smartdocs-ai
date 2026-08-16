@@ -91,6 +91,13 @@ public sealed class DocumentIndexingService : IDocumentIndexingService
                 indexVersion,
                 cancellationToken);
 
+            document.IndexingStatus = "Ready";
+            document.IndexingError = null;
+            document.CurrentIndexVersion = indexVersion;
+            document.ProcessingStartedAt = null;
+            document.NextProcessingAttemptAt = null;
+            await _context.SaveChangesAsync(cancellationToken);
+
             try
             {
                 await _qdrantService.DeleteDocumentChunksExceptVersionAsync(
@@ -106,13 +113,6 @@ public sealed class DocumentIndexingService : IDocumentIndexingService
                     "Old Qdrant vectors for document {DocumentId} could not be cleaned up.",
                     document.Id);
             }
-
-            document.IndexingStatus = "Ready";
-            document.IndexingError = null;
-            document.CurrentIndexVersion = indexVersion;
-            document.ProcessingStartedAt = null;
-            document.NextProcessingAttemptAt = null;
-            await _context.SaveChangesAsync(cancellationToken);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
