@@ -5,59 +5,62 @@ using Microsoft.IdentityModel.Tokens;
 using SmartDocsAI.API.Interfaces;
 using SmartDocsAI.API.Models;
 
-namespace SmartDocsAI.API.Services
+namespace SmartDocsAI.API.Services;
+
+public sealed class TokenService : ITokenService
 {
-    public class TokenService : ITokenService
+    private readonly IConfiguration _configuration;
+    private readonly SymmetricSecurityKey _key;
+    private readonly int _lifetimeMinutes;
+
+    public TokenService(IConfiguration configuration)
     {
-        private readonly IConfiguration _config;
-        private readonly SymmetricSecurityKey _key;
+        _configuration = configuration;
+        var tokenKey = configuration["JwtSettings:TokenKey"]
+            ?? throw new InvalidOperationException("JwtSettings:TokenKey is missing.");
 
-        public TokenService(IConfiguration config)
+        if (Encoding.UTF8.GetByteCount(tokenKey) < 64)
         {
-            _config = config;
-
-            // appsettings.json dosyasından TokenKey (şifreleme anahtarını) alıyoruz.
-            var tokenKey = _config["JwtSettings:TokenKey"]
-                ?? throw new ArgumentNullException("JwtSettings:TokenKey appsettings.json'da tanımlanmamış.");
-
-            // Anahtarı byte dizisine çevirip şifreleme sınıfına veriyoruz.
-            _key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(tokenKey));
+            throw new InvalidOperationException(
+                "JwtSettings:TokenKey must be at least 64 bytes for HMAC-SHA512.");
         }
 
-        public string CreateToken(User user)
+        _key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(tokenKey));
+        _lifetimeMinutes = Math.Clamp(
+            configuration.GetValue<int?>("JwtSettings:LifetimeMinutes") ?? 480,
+            15,
+            10_080);
+    }
+
+    public string CreateToken(User user)
+    {
+        ArgumentNullException.ThrowIfNull(user);
+        var now = DateTime.UtcNow;
+        var claims = new List<Claim>
         {
-            // Token içerisine gömeceğimiz kullanıcı bilgileri (Claims)
-            var claims = new List<Claim>
-            {
-                new Claim(JwtRegisteredClaimNames.NameId, user.Id.ToString()),
-                new Claim(JwtRegisteredClaimNames.Email, user.Email),
-                new Claim(ClaimTypes.Name, user.FullName)
-            };
+            new(JwtRegisteredClaimNames.NameId, user.Id.ToString()),
+            new(JwtRegisteredClaimNames.Email, user.Email),
+            new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString("N")),
+            new(ClaimTypes.Name, user.FullName)
+        };
 
-            // Eğer kullanıcının rolü yüklenmişse rol bilgisini de Token'a ekliyoruz.
-            if (user.Role != null)
-            {
-                claims.Add(new Claim(ClaimTypes.Role, user.Role.Name));
-            }
-
-            // Token'ı imzalamak için HmacSha512 algoritmasını kullanıyoruz.
-            var creds = new SigningCredentials(_key, SecurityAlgorithms.HmacSha512Signature);
-
-            // Token'ın detaylarını yapılandırıyoruz.
-            var tokenDescriptor = new SecurityTokenDescriptor
-            {
-                Subject = new ClaimsIdentity(claims),
-                Expires = DateTime.UtcNow.AddDays(7), // Token 7 gün geçerli olacak.
-                SigningCredentials = creds,
-                Issuer = _config["JwtSettings:Issuer"],
-                Audience = _config["JwtSettings:Audience"]
-            };
-
-            var tokenHandler = new JwtSecurityTokenHandler();
-            var token = tokenHandler.CreateToken(tokenDescriptor);
-
-            // Üretilen Token nesnesini string (metin) formatına dönüştürüp dönüyoruz.
-            return tokenHandler.WriteToken(token);
+        if (user.Role is not null)
+        {
+            claims.Add(new Claim(ClaimTypes.Role, user.Role.Name));
         }
+
+        var descriptor = new SecurityTokenDescriptor
+        {
+            Subject = new ClaimsIdentity(claims),
+            IssuedAt = now,
+            NotBefore = now,
+            Expires = now.AddMinutes(_lifetimeMinutes),
+            SigningCredentials = new SigningCredentials(_key, SecurityAlgorithms.HmacSha512Signature),
+            Issuer = _configuration["JwtSettings:Issuer"],
+            Audience = _configuration["JwtSettings:Audience"]
+        };
+
+        var handler = new JwtSecurityTokenHandler();
+        return handler.WriteToken(handler.CreateToken(descriptor));
     }
 }

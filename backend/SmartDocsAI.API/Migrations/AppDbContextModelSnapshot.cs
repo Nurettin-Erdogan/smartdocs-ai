@@ -108,6 +108,19 @@ namespace SmartDocsAI.API.Migrations
                         .HasColumnType("character varying(20)")
                         .HasDefaultValue("Pending");
 
+                    b.Property<string>("CurrentIndexVersion")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<DateTime?>("ProcessingStartedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("ProcessingAttemptCount")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("NextProcessingAttemptAt")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<string>("Title")
                         .IsRequired()
                         .HasMaxLength(255)

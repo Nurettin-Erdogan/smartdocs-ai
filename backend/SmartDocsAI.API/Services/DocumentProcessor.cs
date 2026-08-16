@@ -1,102 +1,225 @@
-// Yüklenen PDF'yi işler.
-// PDF'den metni çıkarır ve metni küçük parçalara ayırır.
-// Daha sonra embedding oluşturulacak yapıyı hazırlar.
-
-using UglyToad.PdfPig;
 using SmartDocsAI.API.Interfaces;
 using SmartDocsAI.API.Models;
+using UglyToad.PdfPig;
 
-namespace SmartDocsAI.API.Services
+namespace SmartDocsAI.API.Services;
+
+public sealed class DocumentProcessor : IDocumentProcessor
 {
-    public class DocumentProcessor : IDocumentProcessor
+    private const int ChunkSize = 800;
+    private const int Overlap = 150;
+    private const int DefaultMaxChunks = 2_000;
+
+    private readonly int _maxChunks;
+    private readonly int _maxPages;
+    private readonly int _maxExtractedCharacters;
+    private readonly TimeSpan _processingTimeout;
+    private readonly DocumentProcessingGate _processingGate;
+
+    public DocumentProcessor(
+        IConfiguration configuration,
+        DocumentProcessingGate processingGate)
     {
-        private const int ChunkSize = 800; // Her bir parçanın karakter limiti
-        private const int Overlap = 150;    // Parçalar arası çakışan karakter miktarı
+        _processingGate = processingGate;
+        _maxChunks = Math.Clamp(
+            configuration.GetValue<int?>("DocumentProcessingSettings:MaxChunks") ?? DefaultMaxChunks,
+            1,
+            10_000);
+        _maxPages = Math.Clamp(
+            configuration.GetValue<int?>("DocumentProcessingSettings:MaxPages") ?? 500,
+            1,
+            5_000);
+        _maxExtractedCharacters = Math.Clamp(
+            configuration.GetValue<int?>("DocumentProcessingSettings:MaxExtractedCharacters") ?? 2_000_000,
+            10_000,
+            20_000_000);
+        _processingTimeout = TimeSpan.FromSeconds(Math.Clamp(
+            configuration.GetValue<int?>("DocumentProcessingSettings:TimeoutSeconds") ?? 60,
+            5,
+            600));
+    }
 
-        public async Task<List<Chunk>> ProcessPdfAsync(Document document)
+    public async Task<List<Chunk>> ProcessPdfAsync(
+        Document document,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(document);
+
+        await _processingGate.WaitAsync(cancellationToken);
+        var timeoutSource = new CancellationTokenSource(_processingTimeout);
+        var linkedSource = CancellationTokenSource.CreateLinkedTokenSource(
+            cancellationToken,
+            timeoutSource.Token);
+        var processingTask = Task.Run(
+            () => ProcessPdf(document, linkedSource.Token),
+            CancellationToken.None);
+
+        try
         {
-            var chunks = new List<Chunk>();
-            int chunkIndex = 0;
-
-            // Arka planda CPU yoğunluklu bir işlem olacağı için Task.Run kullanarak asenkron çalıştırıyoruz.
-            await Task.Run(() =>
-            {
-                // PdfPig kütüphanesi ile PDF dosyasını açıyoruz
-                using (var pdf = PdfDocument.Open(document.FilePath))
-                {
-                    foreach (var page in pdf.GetPages())
-                    {
-                        // Sayfa metnini okuyoruz
-                        var pageText = page.Text;
-
-                        if (string.IsNullOrWhiteSpace(pageText))
-                            continue;
-
-                        // Sayfadaki metni temizleme (gereksiz boşlukları ve satır sonlarını düzenleme)
-                        pageText = CleanText(pageText);
-
-                        // Sayfa metnini örtüşmeli parçalara ayırıyoruz
-                        var textChunks = SplitIntoChunks(pageText, ChunkSize, Overlap);
-
-                        foreach (var content in textChunks)
-                        {
-                            chunks.Add(new Chunk
-                            {
-                                DocumentId = document.Id,
-                                ChunkIndex = chunkIndex++,
-                                Content = content,
-                                PageNumber = page.Number
-                            });
-                        }
-                    }
-                }
-            });
-
-            return chunks;
+            return await processingTask.WaitAsync(_processingTimeout, cancellationToken);
         }
-
-        /// <summary>
-        /// Metindeki gereksiz boşlukları ve ardışık satır sonlarını temizler.
-        /// </summary>
-        private string CleanText(string text)
+        catch (TimeoutException exception)
         {
-            return text.Replace("\r\n", " ")
-                       .Replace("\n", " ")
-                       .Replace("\t", " ")
-                       .Trim();
+            timeoutSource.Cancel();
+            throw new InvalidDataException(
+                $"PDF işleme süresi {_processingTimeout.TotalSeconds:0} saniyelik güvenlik sınırını aştı.",
+                exception);
         }
-
-        /// <summary>
-        /// Kayar pencere (Sliding Window) tekniğiyle metni parçalara ayırır.
-        /// </summary>
-        private List<string> SplitIntoChunks(string text, int chunkSize, int overlap)
+        catch (OperationCanceledException exception) when (
+            timeoutSource.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
         {
-            var chunks = new List<string>();
-            if (string.IsNullOrEmpty(text)) return chunks;
-
-            // Metin belirtilen boyuttan kısaysa tek parça olarak döner.
-            if (text.Length <= chunkSize)
+            throw new InvalidDataException(
+                $"PDF işleme süresi {_processingTimeout.TotalSeconds:0} saniyelik güvenlik sınırını aştı.",
+                exception);
+        }
+        finally
+        {
+            if (processingTask.IsCompleted)
             {
-                chunks.Add(text);
-                return chunks;
+                linkedSource.Dispose();
+                timeoutSource.Dispose();
+                _processingGate.Release();
             }
-
-            int start = 0;
-            while (start < text.Length)
+            else
             {
-                int end = Math.Min(start + chunkSize, text.Length);
-                var chunk = text.Substring(start, end - start);
-                chunks.Add(chunk);
-
-                // Dosya sonuna ulaştıysak döngüyü bitir.
-                if (end >= text.Length)
-                    break;
-
-                // Örtüşmeyi (Overlap) hesaba katarak yeni başlangıç noktasını belirle.
-                start += (chunkSize - overlap);
+                _ = ObserveAndReleaseAsync(
+                    processingTask,
+                    linkedSource,
+                    timeoutSource,
+                    _processingGate);
             }
-
-            return chunks;
         }
     }
+
+    private List<Chunk> ProcessPdf(Document document, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        var chunks = new List<Chunk>();
+        var chunkIndex = 0;
+        var extractedCharacters = 0;
+
+        using var pdf = PdfDocument.Open(document.FilePath);
+        if (pdf.NumberOfPages > _maxPages)
+        {
+            throw new InvalidDataException(
+                $"PDF en fazla {_maxPages} sayfa içerebilir.");
+        }
+
+        foreach (var page in pdf.GetPages())
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var pageText = CleanText(page.Text);
+            if (string.IsNullOrWhiteSpace(pageText))
+            {
+                continue;
+            }
+
+            extractedCharacters = checked(extractedCharacters + pageText.Length);
+            if (extractedCharacters > _maxExtractedCharacters)
+            {
+                throw new InvalidDataException(
+                    $"PDF en fazla {_maxExtractedCharacters:N0} çıkarılmış metin karakteri içerebilir.");
+            }
+
+            foreach (var content in SplitIntoChunks(pageText, ChunkSize, Overlap))
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                if (chunks.Count >= _maxChunks)
+                {
+                    throw new InvalidDataException(
+                        $"PDF güvenli işleme sınırını aştı. En fazla {_maxChunks} metin parçası oluşturulabilir.");
+                }
+
+                chunks.Add(new Chunk
+                {
+                    DocumentId = document.Id,
+                    ChunkIndex = chunkIndex++,
+                    Content = content,
+                    PageNumber = page.Number
+                });
+            }
+        }
+
+        return chunks;
+    }
+
+    private static async Task ObserveAndReleaseAsync(
+        Task processingTask,
+        CancellationTokenSource linkedSource,
+        CancellationTokenSource timeoutSource,
+        DocumentProcessingGate processingGate)
+    {
+        try
+        {
+            await processingTask;
+        }
+        catch
+        {
+            // The request has already observed cancellation or timeout.
+        }
+        finally
+        {
+            linkedSource.Dispose();
+            timeoutSource.Dispose();
+            processingGate.Release();
+        }
+    }
+
+    private static string CleanText(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return string.Empty;
+        }
+
+        return string.Join(' ', text
+            .Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+    }
+
+    private static IEnumerable<string> SplitIntoChunks(string text, int chunkSize, int overlap)
+    {
+        if (string.IsNullOrEmpty(text))
+        {
+            yield break;
+        }
+
+        var step = chunkSize - overlap;
+        if (step <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(overlap), "Overlap must be smaller than chunk size.");
+        }
+
+        for (var start = 0; start < text.Length; start += step)
+        {
+            var length = Math.Min(chunkSize, text.Length - start);
+            yield return text.Substring(start, length);
+
+            if (start + length >= text.Length)
+            {
+                yield break;
+            }
+        }
+    }
+}
+
+public sealed class DocumentProcessingGate
+{
+    private readonly SemaphoreSlim _semaphore;
+
+    public DocumentProcessingGate(IConfiguration configuration)
+    {
+        var maxConcurrency = Math.Clamp(
+            configuration.GetValue<int?>("DocumentProcessingSettings:MaxConcurrentDocuments") ?? 2,
+            1,
+            8);
+        _semaphore = new SemaphoreSlim(maxConcurrency, maxConcurrency);
+    }
+
+    public Task WaitAsync(CancellationToken cancellationToken) =>
+        _semaphore.WaitAsync(cancellationToken);
+
+    public void Release() => _semaphore.Release();
 }

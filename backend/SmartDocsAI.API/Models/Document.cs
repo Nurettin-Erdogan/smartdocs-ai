@@ -44,6 +44,15 @@ namespace SmartDocsAI.API.Models
         [MaxLength(1000)]
         public string? IndexingError { get; set; }
 
+        [MaxLength(32)]
+        public string? CurrentIndexVersion { get; set; }
+
+        public DateTime? ProcessingStartedAt { get; set; }
+
+        public int ProcessingAttemptCount { get; set; }
+
+        public DateTime? NextProcessingAttemptAt { get; set; }
+
         public ICollection<Chunk> Chunks { get; set; } = new List<Chunk>();
     }
 }

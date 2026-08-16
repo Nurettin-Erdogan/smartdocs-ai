@@ -1,88 +1,235 @@
-# SmartDocs AI API Design
+# SmartDocs AI API
 
----
+Yerel geliştirme taban adresi `http://localhost:5129/api`, Docker Compose taban adresi `http://localhost:8080/api` şeklindedir. JSON alan adları camelCase biçimindedir.
 
-# Authentication
+## Kimlik doğrulama
 
-## Register
+`/auth` ve `/home` dışındaki endpointler JWT ister:
 
-POST /api/auth/register
+```http
+Authorization: Bearer eyJhbGciOi...
+```
 
-Açıklama:
-Yeni kullanıcı oluşturur.
+JWT varsayılan olarak 8 saat geçerlidir. Süresi dolan veya geçersiz token `401 Unauthorized` üretir.
 
----
+### Hesap oluşturma
 
-## Login
+`POST /api/auth/register`
 
-POST /api/auth/login
+```json
+{
+  "fullName": "Ada Lovelace",
+  "email": "ada@example.com",
+  "password": "guclu-parola"
+}
+```
 
-Açıklama:
-Kullanıcı giriş yapar.
+Başarılı yanıt (`200`):
 
----
+```json
+{
+  "id": 12,
+  "fullName": "Ada Lovelace",
+  "email": "ada@example.com",
+  "role": "Personel",
+  "token": "eyJhbGciOi..."
+}
+```
 
-# Documents
+Olası yanıtlar: `400` doğrulama hatası, `409` e-posta kullanımda, `429` hız sınırı.
 
-## Upload Document
+### Giriş
 
-POST /api/documents
+`POST /api/auth/login`
 
-Açıklama:
-Yeni belge yükler.
+```json
+{
+  "email": "ada@example.com",
+  "password": "guclu-parola"
+}
+```
 
----
+Başarılı yanıt kayıt yanıtıyla aynıdır. Hatalı bilgiler `401` döndürür ve hesabın bulunup bulunmadığını açıklamaz.
 
-## Get Documents
+## Belgeler
 
-GET /api/documents
+### Listeleme
 
-Açıklama:
-Tüm belgeleri listeler.
+`GET /api/documents`
 
----
+```json
+[
+  {
+    "id": 37,
+    "title": "Kullanım Kılavuzu",
+    "fileName": "kullanim-kilavuzu.pdf",
+    "fileType": ".pdf",
+    "fileSize": 248193,
+    "uploadDate": "2026-07-14T10:30:00Z",
+    "indexingStatus": "Ready"
+  }
+]
+```
 
-## Delete Document
+Yalnızca giriş yapan kullanıcının belgeleri döner.
 
-DELETE /api/documents/{id}
+### PDF yükleme
 
-Açıklama:
-Belgeyi siler.
+`POST /api/documents/upload`
 
----
+İstek `multipart/form-data` olmalı ve dosya `file` alanında gönderilmelidir.
 
-## Get Document Detail
+```bash
+curl -X POST http://localhost:5129/api/documents/upload \
+  -H "Authorization: Bearer TOKEN" \
+  -F "file=@ornek.pdf"
+```
 
-GET /api/documents/{id}
+Kurallar:
 
-Açıklama:
-Belge detayını getirir.
+- yalnızca `.pdf`
+- en fazla 100 MB
+- içerik `%PDF-` imzasıyla başlamalı
+- tek belgede en fazla yapılandırılmış `MaxChunks` değeri kadar parça
 
----
+Başarılı yanıt `202 Accepted` ve `Pending` durumundaki belge nesnesidir. Metin çıkarma ve
+indeksleme kalıcı arka plan kuyruğunda devam eder. Geçici dış servis hataları otomatik
+olarak yeniden denenir; son deneme de başarısız olursa durum `Failed` olur.
 
-# Chat
+### Silme
 
-## Ask AI
+`DELETE /api/documents/{id}`
 
-POST /api/chat
+Belge kullanıcının değilse veya yoksa `404` döner. Qdrant'taki hazır indeks güvenli biçimde temizlenemiyorsa veri tutarlılığını korumak için `503` döner. Aktif yeniden indeksleme sırasında `409` döner.
 
-Açıklama:
-Yapay zekaya soru gönderir.
+### Yeniden indeksleme
 
----
+`POST /api/documents/{id}/reindex`
 
-## Chat History
+Başarılı yanıt `202 Accepted` değeridir. Yeni embedding sürümü tamamen yazılmadan eski
+çalışan sürüm silinmez. Yeniden indeksleme başarısız olursa daha önce `Ready` olan indeks
+kullanılmaya devam eder.
 
-GET /api/chat/history
+Olası yanıtlar: `202`, `404`, `409` işlem sürüyor.
 
-Açıklama:
-Geçmiş sohbetleri getirir.
+## Sohbet
 
----
+### Soru sorma
 
-# Dashboard
+`POST /api/chat`
 
-GET /api/dashboard
+Yeni sohbet:
 
-Açıklama:
-Dashboard verilerini getirir.
+```json
+{
+  "question": "Başvuru şartları nelerdir?"
+}
+```
+
+Var olan sohbeti sürdürme:
+
+```json
+{
+  "question": "İkinci şartı biraz açar mısın?",
+  "conversationId": 9
+}
+```
+
+Başarılı yanıt (`200`):
+
+```json
+{
+  "conversationId": 9,
+  "answer": "Belgeye göre başvuru için ...",
+  "sources": [
+    {
+      "documentId": 37,
+      "title": "Kullanım Kılavuzu",
+      "chunkIndex": 4,
+      "pageNumber": 3,
+      "score": 0.8124,
+      "content": "Başvuru için ..."
+    }
+  ]
+}
+```
+
+Soru 1-2000 karakter olmalıdır. Arama yalnızca kullanıcının `Ready` belgelerinde yapılır. Yeterince benzer içerik yoksa `404`, hazır belge yoksa `400`, dış servis zaman aşımı/erişim sorunu varsa `503`, geçersiz dış servis yanıtı varsa `502` döner.
+
+Arayüz aynı endpoint'e `Accept: application/x-ndjson` başlığıyla bağlanır. Bu durumda cevap tek parça JSON yerine `start`, `chunk`, `done` olaylarıyla üretildikçe aktarılır. Akış sırasında model hatası oluşursa `error` olayı gönderilir. Standart `application/json` istemcileri geriye uyumlu tek parça yanıt almaya devam eder.
+
+### Sohbet özetleri
+
+`GET /api/chat/history`
+
+En yeni 50 sohbeti hafif özet biçiminde getirir:
+
+```json
+[
+  {
+    "conversationId": 9,
+    "createdAt": "2026-07-14T10:42:00Z",
+    "firstQuestion": "Başvuru şartları nelerdir?",
+    "messageCount": 3
+  }
+]
+```
+
+### Sohbet ayrıntısı
+
+`GET /api/chat/{conversationId}`
+
+```json
+{
+  "conversationId": 9,
+  "createdAt": "2026-07-14T10:42:00Z",
+  "messages": [
+    {
+      "id": 21,
+      "question": "Başvuru şartları nelerdir?",
+      "answer": "Belgeye göre ...",
+      "createdAt": "2026-07-14T10:42:02Z"
+    }
+  ]
+}
+```
+
+Başka kullanıcıya ait sohbet için `404` döner.
+
+## Canlılık
+
+`GET /api/home`
+
+```json
+{
+  "service": "SmartDocs AI API",
+  "status": "ok",
+  "timestamp": "2026-07-14T10:45:00+00:00"
+}
+```
+
+Bu endpoint yalnızca API sürecinin yanıt verdiğini gösterir; PostgreSQL, Qdrant veya Ollama için derin sağlık kontrolü değildir.
+
+`GET /api/home/ready` PostgreSQL, Qdrant ve Ollama bağlantılarını ayrı ayrı denetler. Tüm servisler hazırsa `200`, bağımlılıklardan biri kullanılamıyorsa `503` döner.
+
+## Hata biçimleri
+
+İş kuralı hataları genellikle şu biçimdedir:
+
+```json
+{
+  "message": "Belge bulunamadı."
+}
+```
+
+Model doğrulama ve beklenmeyen üretim hataları RFC Problem Details biçiminde dönebilir. İstemci her iki biçimi de destekler.
+
+Hız sınırı yanıtı `429` kodu, `Retry-After` başlığı ve `retryAfterSeconds` alanı içerir.
+
+## Hız sınırları
+
+| Grup | Sınır |
+| --- | --- |
+| Kayıt ve giriş | IP başına dakikada 10 |
+| Soru sorma | kullanıcı/IP başına dakikada 20 |
+| Yükleme, silme, yeniden indeksleme | kullanıcı/IP başına 5 dakikada 6 |

@@ -1,0 +1,78 @@
+name: smartdocs-ai
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: smartdocs-ai:local
+    restart: unless-stopped
+    environment:
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Production}
+      Hosting__UseHttpsRedirection: "false"
+      ConnectionStrings__DefaultConnection: "Host=postgres;Port=5432;Database=${POSTGRES_DB:-SmartDocsAI_Db};Username=${POSTGRES_USER:-smartdocs};Password=${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}"
+      JwtSettings__TokenKey: ${JWT_TOKEN_KEY:?Set JWT_TOKEN_KEY in .env}
+      SeedData__AdminFullName: ${SEED_ADMIN_NAME:-SmartDocs Admin}
+      SeedData__AdminEmail: ${SEED_ADMIN_EMAIL:-admin@smartdocs.ai}
+      SeedData__AdminPassword: ${SEED_ADMIN_PASSWORD:-}
+      QdrantSettings__BaseUrl: http://qdrant:6333
+      QdrantSettings__CollectionName: ${QDRANT_COLLECTION:-smartdocs_chunks}
+      QdrantSettings__VectorSize: ${QDRANT_VECTOR_SIZE:-768}
+      OllamaSettings__BaseUrl: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      OllamaSettings__EmbeddingModel: ${OLLAMA_EMBEDDING_MODEL:-nomic-embed-text}
+      OllamaSettings__ChatModel: ${OLLAMA_CHAT_MODEL:-llama3}
+      OllamaSettings__KeepAlive: ${OLLAMA_KEEP_ALIVE:--1}
+      OllamaSettings__TimeoutSeconds: ${OLLAMA_TIMEOUT_SECONDS:-0}
+      OllamaSettings__NumContext: ${OLLAMA_NUM_CONTEXT:-4096}
+      OllamaSettings__Temperature: ${OLLAMA_TEMPERATURE:-0.1}
+    extra_hosts:
+      - host.docker.internal:host-gateway
+    ports:
+      - "${APP_PORT:-8080}:8080"
+    volumes:
+      - uploads:/app/Uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+      qdrant:
+        condition: service_started
+
+  postgres:
+    image: postgres:17.10-alpine3.23
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-SmartDocsAI_Db}
+      POSTGRES_USER: ${POSTGRES_USER:-smartdocs}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+
+  qdrant:
+    image: qdrant/qdrant:v1.18.2
+    restart: unless-stopped
+    volumes:
+      - qdrant-data:/qdrant/storage
+
+  ollama:
+    image: ollama/ollama:0.31.2
+    profiles:
+      - docker-ai
+    restart: unless-stopped
+    ports:
+      - "${OLLAMA_PORT:-11434}:11434"
+    volumes:
+      - ollama-data:/root/.ollama
+
+volumes:
+  postgres-data:
+  qdrant-data:
+  uploads:
+  ollama-data:

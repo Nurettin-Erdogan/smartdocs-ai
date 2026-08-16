@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "typecheck": "tsc -b",
+    "test": "vitest run",
     "build": "vite build",
     "preview": "vite preview"
   },
@@ -14,12 +15,13 @@
     "react-dom": "^19.1.0"
   },
   "devDependencies": {
+    "@types/node": "^24.0.0",
     "@types/react": "^19.1.8",
     "@types/react-dom": "^19.1.6",
-    "@types/node": "^24.0.0",
     "@vitejs/plugin-react": "^5.0.0",
     "typescript": "^5.8.3",
-    "vite": "^7.1.2"
+    "vite": "^7.1.2",
+    "vitest": "^4.1.10"
   },
   "allowScripts": {
     "esbuild@0.28.1": true

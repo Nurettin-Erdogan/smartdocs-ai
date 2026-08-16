@@ -1,0 +1,104 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend (.NET 10)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up .NET 10
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore
+        run: >-
+          dotnet restore tests/SmartDocsAI.API.Tests/SmartDocsAI.API.Tests.csproj
+          /p:NuGetAudit=true /p:NuGetAuditMode=all /warnaserror
+
+      - name: Build
+        run: >-
+          dotnet build tests/SmartDocsAI.API.Tests/SmartDocsAI.API.Tests.csproj
+          --configuration Release --no-restore -warnaserror
+
+      - name: Verify formatting
+        run: >-
+          dotnet format tests/SmartDocsAI.API.Tests/SmartDocsAI.API.Tests.csproj
+          --verify-no-changes --no-restore
+
+      - name: Test
+        run: dotnet test tests/SmartDocsAI.API.Tests/SmartDocsAI.API.Tests.csproj --configuration Release --no-build --no-restore
+
+  frontend:
+    name: Frontend (Node 24)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Node.js 24
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Audit dependencies
+        run: npm audit --audit-level=moderate
+
+      - name: Type-check
+        run: npm run typecheck
+
+      - name: Test
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+  container:
+    name: Container package
+    needs:
+      - backend
+      - frontend
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Validate Compose configuration
+        env:
+          POSTGRES_PASSWORD: ci-postgres-password
+          JWT_TOKEN_KEY: ci-only-token-key-that-is-at-least-sixty-four-bytes-12345678901234567890
+          SEED_ADMIN_PASSWORD: ci-admin-password
+        run: docker compose config --quiet
+
+      - name: Build application image
+        run: docker build --tag smartdocs-ai:ci .

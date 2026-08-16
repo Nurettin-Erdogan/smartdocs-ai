@@ -223,3 +223,20 @@ BEGIN
     END IF;
 END $EF$;
 COMMIT;
+START TRANSACTION;
+
+DO $EF$
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM "__EFMigrationsHistory" WHERE "MigrationId" = '20260714190000_AddCurrentIndexVersion') THEN
+    ALTER TABLE "Documents" ADD "CurrentIndexVersion" character varying(32);
+    END IF;
+END $EF$;
+
+DO $EF$
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM "__EFMigrationsHistory" WHERE "MigrationId" = '20260714190000_AddCurrentIndexVersion') THEN
+    INSERT INTO "__EFMigrationsHistory" ("MigrationId", "ProductVersion")
+    VALUES ('20260714190000_AddCurrentIndexVersion', '10.0.9');
+    END IF;
+END $EF$;
+COMMIT;
