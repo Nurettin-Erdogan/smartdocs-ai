@@ -1,6 +1,29 @@
 # SmartDocs AI
 
+<p align="center">
+  <a href="https://github.com/Nurettin-Erdogan/smartdocs-ai/actions/workflows/ci.yml"><img src="https://github.com/Nurettin-Erdogan/smartdocs-ai/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI durumu"></a>
+</p>
+
 SmartDocs AI, kullanıcının kendi PDF belgeleri üzerinde kaynak göstererek Türkçe soru-cevap yapmasını sağlayan, yerel çalışabilen bir RAG uygulamasıdır.
+
+<p align="center">
+  <a href="#docker-ile-hızlı-başlangıç"><strong>Yerelde çalıştır →</strong></a>
+  &nbsp;·&nbsp;
+  <a href="docs/system-architecture.md">Mimari</a>
+  &nbsp;·&nbsp;
+  <a href="#testler">Testler</a>
+</p>
+
+## Portföy özeti
+
+| | |
+| --- | --- |
+| **Problem** | Özel PDF belgelerinde arama yapmak isteyen ekiplerin veriyi üçüncü taraf bir yapay zekâ servisine göndermek zorunda kalması |
+| **Çözüm** | Ollama, Qdrant ve PostgreSQL kullanan; cevaplarını sayfa ve parça düzeyinde kaynaklandıran yerel RAG sistemi |
+| **Zor mühendislik kararları** | Kullanıcı bazlı vektör filtreleme, başarısız işlemde eski indeksi koruyan güvenli yeniden indeksleme ve dosya yükleme savunmaları |
+| **Doğrulama** | Backend/frontend birim testleri, GitHub Actions ve Docker Compose ile tekrarlanabilir tam yığın kurulum |
+
+Bu proje; RAG akışını bir demo çağrısından çıkarıp kimlik doğrulama, sahiplik sınırları, kalıcı veri, hata durumları ve kaynak gösterimi olan gerçek bir ürüne dönüştürebildiğimi gösterir.
 
 ```text
 PDF → metin çıkarma → parçalara ayırma → Ollama embedding
