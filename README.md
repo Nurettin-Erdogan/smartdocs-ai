@@ -230,3 +230,7 @@ docker-compose.yml             Uygulama servisleri
 - Ölçekli kurulumda tek süreç içi yeniden indeksleme kilidi yerine dağıtık iş kuyruğu kullanın.
 
 Dağıtım ayrıntıları için [deployment.md](docs/deployment.md), şema ayrıntıları için [database.md](docs/database.md) dosyasına bakın.
+
+## Lisans
+
+Bu proje [MIT Lisansı](LICENSE) ile lisanslanmıştır.
