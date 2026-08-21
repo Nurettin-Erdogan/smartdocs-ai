@@ -9,6 +9,8 @@ SmartDocs AI, kullanıcının kendi PDF belgeleri üzerinde kaynak göstererek T
 <p align="center">
   <a href="#docker-ile-hızlı-başlangıç"><strong>Yerelde çalıştır →</strong></a>
   &nbsp;·&nbsp;
+  <a href="docs/demo-guide.md"><strong>3 dakikalık demo</strong></a>
+  &nbsp;·&nbsp;
   <a href="docs/system-architecture.md">Mimari</a>
   &nbsp;·&nbsp;
   <a href="#testler">Testler</a>
