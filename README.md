@@ -16,6 +16,11 @@ SmartDocs AI, kullanıcının kendi PDF belgeleri üzerinde kaynak göstererek T
   <a href="#testler">Testler</a>
 </p>
 
+<p align="center">
+  <img src="docs/screenshots/sourced-answer-demo.jpg" alt="SmartDocs AI belge listesi, kaynaklı cevap ve sayfa referansları" width="1100">
+</p>
+<p align="center"><sub>Güncel frontend, sentetik demo belgeleri ve cevap verisiyle gösterilmiştir.</sub></p>
+
 ## Portföy özeti
 
 | | |
