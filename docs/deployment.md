@@ -7,6 +7,8 @@ Bu belge Docker Compose ile tek makine kurulumu ve üretime geçerken gereken op
 Kök dizindeki `vercel.json`, React arayüzünü sentetik örnek verilerle çalışan demo
 modunda yayımlar. Bu dağıtım PostgreSQL, Qdrant veya Ollama gerektirmez:
 
+Canlı adres: <https://smartdocs-ai-henna.vercel.app>
+
 ```powershell
 Set-Location frontend
 npm ci

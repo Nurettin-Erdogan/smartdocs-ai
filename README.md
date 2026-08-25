@@ -7,6 +7,8 @@
 SmartDocs AI, kullanıcının kendi PDF belgeleri üzerinde kaynak göstererek Türkçe soru-cevap yapmasını sağlayan, yerel çalışabilen bir RAG uygulamasıdır.
 
 <p align="center">
+  <a href="https://smartdocs-ai-henna.vercel.app"><strong>Canlı vitrin demosu →</strong></a>
+  &nbsp;·&nbsp;
   <a href="#docker-ile-hızlı-başlangıç"><strong>Yerelde çalıştır →</strong></a>
   &nbsp;·&nbsp;
   <a href="docs/demo-guide.md"><strong>3 dakikalık demo</strong></a>
@@ -36,6 +38,8 @@ Repository ayrıca ağır Ollama/Qdrant altyapısı olmadan arayüzü gezilebili
 **vitrin demo modu** içerir. Bu mod yalnızca sentetik örnek veriler kullanır; seçilen
 dosyaları tarayıcı belleğinin dışına göndermez. Tam RAG davranışı için Docker kurulumu
 kullanılmalıdır.
+
+Canlı demo: <https://smartdocs-ai-henna.vercel.app>
 
 ```text
 PDF → metin çıkarma → parçalara ayırma → Ollama embedding
