@@ -21,6 +21,7 @@ services:
       OllamaSettings__BaseUrl: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
       OllamaSettings__EmbeddingModel: ${OLLAMA_EMBEDDING_MODEL:-nomic-embed-text}
       OllamaSettings__ChatModel: ${OLLAMA_CHAT_MODEL:-llama3}
+      OllamaSettings__WarmupTimeoutSeconds: ${OLLAMA_WARMUP_TIMEOUT_SECONDS:-30}
       OllamaSettings__KeepAlive: ${OLLAMA_KEEP_ALIVE:--1}
       OllamaSettings__TimeoutSeconds: ${OLLAMA_TIMEOUT_SECONDS:-0}
       OllamaSettings__NumContext: ${OLLAMA_NUM_CONTEXT:-4096}

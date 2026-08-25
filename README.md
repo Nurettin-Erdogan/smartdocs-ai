@@ -32,6 +32,11 @@ SmartDocs AI, kullanıcının kendi PDF belgeleri üzerinde kaynak göstererek T
 
 Bu proje; RAG akışını bir demo çağrısından çıkarıp kimlik doğrulama, sahiplik sınırları, kalıcı veri, hata durumları ve kaynak gösterimi olan gerçek bir ürüne dönüştürebildiğimi gösterir.
 
+Repository ayrıca ağır Ollama/Qdrant altyapısı olmadan arayüzü gezilebilir kılan bir
+**vitrin demo modu** içerir. Bu mod yalnızca sentetik örnek veriler kullanır; seçilen
+dosyaları tarayıcı belleğinin dışına göndermez. Tam RAG davranışı için Docker kurulumu
+kullanılmalıdır.
+
 ```text
 PDF → metin çıkarma → parçalara ayırma → Ollama embedding
     → Qdrant anlamsal arama → Ollama cevap üretimi → kaynaklı cevap
@@ -145,6 +150,14 @@ npm ci
 npm run dev
 ```
 
+Yalnızca portföy arayüzünü örnek verilerle çalıştırmak için:
+
+```powershell
+Set-Location frontend
+npm run build:demo
+npm run preview
+```
+
 Vite `http://localhost:5173` adresinde çalışır ve `/api` isteklerini `http://localhost:5129` adresine yönlendirir.
 
 ## Test ve doğrulama
@@ -197,6 +210,7 @@ Sohbet yalnızca `Ready` belgeleri arar. Her kullanıcı sadece kendi belge ve s
 | --- | --- | --- |
 | `JwtSettings:LifetimeMinutes` | `480` | JWT ömrü |
 | `OllamaSettings:TimeoutSeconds` | `0` | Ollama HTTP zaman aşımı; `0` sınırsız bekler |
+| `OllamaSettings:WarmupTimeoutSeconds` | `30` | Ollama kapalıysa API başlangıcının takılmasını önleyen model ısıtma bütçesi |
 | `OllamaSettings:KeepAlive` | `-1` | Sohbet modelini hızlı yanıt için bellekte tutma süresi; `-1` sürekli tutar |
 | `QdrantSettings:VectorSize` | `768` | Embedding boyutu; modelle aynı olmalı |
 | `QdrantSettings:UpsertBatchSize` | `64` | Vektör yazma paket boyutu |
