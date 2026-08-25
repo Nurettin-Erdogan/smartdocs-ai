@@ -1,6 +1,10 @@
 # SmartDocs AI
 
 <p align="center">
+  <img src="frontend/public/social-preview.png" alt="SmartDocs AI — kaynaklı PDF yanıtları" width="1100">
+</p>
+
+<p align="center">
   <a href="https://github.com/Nurettin-Erdogan/smartdocs-ai/actions/workflows/ci.yml"><img src="https://github.com/Nurettin-Erdogan/smartdocs-ai/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI durumu"></a>
 </p>
 
