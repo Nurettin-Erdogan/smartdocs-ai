@@ -147,10 +147,18 @@ await using (var scope = app.Services.CreateAsyncScope())
     try
     {
         var ollama = scope.ServiceProvider.GetRequiredService<IOllamaService>();
-        await ollama.WarmupAsync();
+        var warmupTimeoutSeconds = Math.Clamp(
+            configuration.GetValue<int?>("OllamaSettings:WarmupTimeoutSeconds") ?? 30,
+            1,
+            300);
+        using var warmupTimeout = CancellationTokenSource.CreateLinkedTokenSource(
+            app.Lifetime.ApplicationStopping);
+        warmupTimeout.CancelAfter(TimeSpan.FromSeconds(warmupTimeoutSeconds));
+        await ollama.WarmupAsync(warmupTimeout.Token);
     }
     catch (Exception exception) when (
-        exception is HttpRequestException or TaskCanceledException or InvalidOperationException)
+        !app.Lifetime.ApplicationStopping.IsCancellationRequested &&
+        (exception is HttpRequestException or OperationCanceledException or InvalidOperationException))
     {
         app.Logger.LogWarning(exception, "Ollama sohbet modeli başlangıçta ısıtılamadı.");
     }

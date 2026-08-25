@@ -1,4 +1,7 @@
 import { SESSION_TOKEN_KEY } from './session';
+import { createDemoApi, isDemoMode } from './demo';
+
+export { isDemoMode } from './demo';
 
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '/api';
 
@@ -268,7 +271,7 @@ async function streamChat(
   return { conversationId, answer: answer.trim(), sources };
 }
 
-export const api = {
+const liveApi = {
   register: (body: { fullName: string; email: string; password: string }) =>
     apiFetch<AuthResponse>('/auth/register', {
       method: 'POST',
@@ -304,3 +307,5 @@ export const api = {
   getConversation: (conversationId: number, signal?: AbortSignal) =>
     apiFetch<ChatConversation>(`/chat/${conversationId}`, { signal })
 };
+
+export const api = isDemoMode ? createDemoApi() : liveApi;

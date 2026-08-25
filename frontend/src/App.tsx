@@ -12,6 +12,7 @@ import {
   ChatHistorySummary,
   ChatResponse,
   DocumentItem,
+  isDemoMode,
   setUnauthorizedHandler
 } from './api';
 import { ConversationThread } from './components/ConversationThread';
@@ -235,6 +236,18 @@ function App() {
     const nextSession = { token, user };
     saveSession(nextSession);
     setSession(nextSession);
+  };
+
+  const handleOpenDemo = () => {
+    persistAuth('smartdocs-demo-session', {
+      fullName: 'Nurettin Erdoğan',
+      email: 'demo@smartdocs.ai',
+      role: 'Vitrin kullanıcısı'
+    });
+    setNotification({
+      kind: 'info',
+      message: 'Vitrin demosu açıldı. Örnek belgelerle tüm arayüzü deneyebilirsin.'
+    });
   };
 
   const handleLogin = async (event: FormEvent) => {
@@ -589,6 +602,16 @@ function App() {
               </button>
             </form>
 
+            {isDemoMode && (
+              <div className="demo-entry">
+                <div className="demo-divider"><span>veya</span></div>
+                <button className="demo-btn" type="button" onClick={handleOpenDemo}>
+                  <span className="demo-btn-icon">▶</span>
+                  <span><strong>Canlı demoyu incele</strong><small>Kayıt gerekmez · örnek veriler kullanılır</small></span>
+                </button>
+              </div>
+            )}
+
             <p className="auth-security"><span>⌁</span> Verilerin üçüncü taraflarla paylaşılmaz.</p>
           </section>
         </main>
@@ -609,6 +632,7 @@ function App() {
       <aside className="sidebar panel">
         <div>
           <div className="brand-pill"><span className="brand-mark">✦</span> SmartDocs AI</div>
+          {isDemoMode && <div className="demo-mode-badge"><span /> Vitrin demosu</div>}
           <h2>{user.fullName}</h2>
           <p>{user.email}</p>
           <div className="role-tag">{user.role ?? 'Kullanıcı'}</div>
@@ -716,9 +740,21 @@ function App() {
           </div>
         </div>
 
-        <button type="button" className="ghost-btn danger" onClick={handleLogout}>
-          Çıkış Yap
-        </button>
+        <div className="sidebar-footer">
+          {isDemoMode && (
+            <a
+              className="repo-link"
+              href="https://github.com/Nurettin-Erdogan/smartdocs-ai"
+              target="_blank"
+              rel="noreferrer"
+            >
+              Kaynak kodu incele <span>↗</span>
+            </a>
+          )}
+          <button type="button" className="ghost-btn danger" onClick={handleLogout}>
+            Çıkış Yap
+          </button>
+        </div>
       </aside>
 
       <main className="main-grid">

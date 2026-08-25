@@ -2,6 +2,21 @@
 
 Bu belge Docker Compose ile tek makine kurulumu ve üretime geçerken gereken operasyonel ayarları anlatır.
 
+## Vercel vitrin demosu
+
+Kök dizindeki `vercel.json`, React arayüzünü sentetik örnek verilerle çalışan demo
+modunda yayımlar. Bu dağıtım PostgreSQL, Qdrant veya Ollama gerektirmez:
+
+```powershell
+Set-Location frontend
+npm ci
+npm run build:demo
+```
+
+Demo modunda kayıt, belge yükleme, silme ve sohbet işlemleri yalnızca sayfa açıkken
+tarayıcı belleğinde tutulur. Gerçek kullanıcı verisi göndermeyin; kalıcı veri ve gerçek
+RAG cevapları için aşağıdaki Docker kurulumunu kullanın.
+
 ## Servisler
 
 Varsayılan Compose kurulumu şunları başlatır:
