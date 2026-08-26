@@ -100,5 +100,29 @@ jobs:
           SEED_ADMIN_PASSWORD: ci-admin-password
         run: docker compose config --quiet
 
+      - name: Verify local-only port bindings
+        env:
+          POSTGRES_PASSWORD: ci-postgres-password
+          JWT_TOKEN_KEY: ci-only-token-key-that-is-at-least-sixty-four-bytes-12345678901234567890
+          SEED_ADMIN_PASSWORD: ci-admin-password
+        run: |
+          docker compose --profile docker-ai config --format json > compose-config.json
+          python - <<'PY'
+          import json
+
+          with open("compose-config.json", encoding="utf-8") as handle:
+              config = json.load(handle)
+
+          for service_name in ("app", "ollama"):
+              ports = config["services"][service_name].get("ports", [])
+              if not ports:
+                  raise SystemExit(f"{service_name} must publish its documented local port")
+              for port in ports:
+                  if port.get("host_ip") != "127.0.0.1":
+                      raise SystemExit(
+                          f"{service_name} port must bind to 127.0.0.1 by default: {port}"
+                      )
+          PY
+
       - name: Build application image
         run: docker build --tag smartdocs-ai:ci .
