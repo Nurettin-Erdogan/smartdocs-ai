@@ -26,6 +26,7 @@ if (-not (Test-Path -LiteralPath $environmentPath)) {
     $databasePassword = New-RandomSecret 32
     $jwtKey = New-RandomSecret 64
     $content = @"
+APP_BIND_HOST=127.0.0.1
 APP_PORT=8080
 ASPNETCORE_ENVIRONMENT=Production
 POSTGRES_DB=SmartDocsAI_Db
@@ -36,6 +37,7 @@ SEED_ADMIN_NAME=SmartDocs Admin
 SEED_ADMIN_EMAIL=admin@smartdocs.ai
 SEED_ADMIN_PASSWORD=
 OLLAMA_BASE_URL=http://host.docker.internal:11434
+OLLAMA_BIND_HOST=127.0.0.1
 OLLAMA_PORT=11434
 OLLAMA_EMBEDDING_MODEL=nomic-embed-text
 OLLAMA_CHAT_MODEL=llama3
