@@ -1,0 +1,35 @@
+name: Hata bildirimi
+description: Yeniden üretilebilir bir ürün veya geliştirme hatasını bildirin.
+title: "[Hata]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: Güvenlik açıklarını burada paylaşmayın; SECURITY.md içindeki özel bildirim yolunu kullanın.
+  - type: textarea
+    id: summary
+    attributes:
+      label: Hata özeti
+      description: Ne oldu ve ne olmasını bekliyordunuz?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Yeniden üretme adımları
+      placeholder: "1. ...\n2. ...\n3. ..."
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Ortam
+      placeholder: Windows 11, Docker Desktop, Chrome 140
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Log veya ekran görüntüsü
+      description: Gizli bilgi ve gerçek belge içeriğini kaldırın.
+

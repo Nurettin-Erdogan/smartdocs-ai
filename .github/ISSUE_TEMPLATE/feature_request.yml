@@ -1,0 +1,26 @@
+name: Özellik önerisi
+description: Kullanıcı problemine dayanan, sınırlı bir geliştirme önerin.
+title: "[Öneri]: "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Çözülecek problem
+      description: Bu ihtiyaç hangi kullanıcı akışında ortaya çıkıyor?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Önerilen yaklaşım
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Kabul ölçütleri
+      description: Özelliğin tamamlandığını nasıl doğrulayacağız?
+    validations:
+      required: true
+

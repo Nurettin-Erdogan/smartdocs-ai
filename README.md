@@ -6,6 +6,8 @@
 
 <p align="center">
   <a href="https://github.com/Nurettin-Erdogan/smartdocs-ai/actions/workflows/ci.yml"><img src="https://github.com/Nurettin-Erdogan/smartdocs-ai/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI durumu"></a>
+  <a href="https://github.com/Nurettin-Erdogan/smartdocs-ai/actions/workflows/codeql.yml"><img src="https://github.com/Nurettin-Erdogan/smartdocs-ai/actions/workflows/codeql.yml/badge.svg?branch=main" alt="CodeQL güvenlik analizi"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/lisans-MIT-0f766e.svg" alt="MIT Lisansı"></a>
 </p>
 
 SmartDocs AI, kullanıcının kendi PDF belgeleri üzerinde kaynak göstererek Türkçe soru-cevap yapmasını sağlayan, yerel çalışabilen bir RAG uygulamasıdır.
@@ -21,7 +23,9 @@ SmartDocs AI, kullanıcının kendi PDF belgeleri üzerinde kaynak göstererek T
   &nbsp;·&nbsp;
   <a href="docs/system-architecture.md">Mimari</a>
   &nbsp;·&nbsp;
-  <a href="#testler">Testler</a>
+  <a href="#test-ve-doğrulama">Testler</a>
+  &nbsp;·&nbsp;
+  <a href="CONTRIBUTING.md">Katkı rehberi</a>
 </p>
 
 <p align="center">
@@ -36,7 +40,7 @@ SmartDocs AI, kullanıcının kendi PDF belgeleri üzerinde kaynak göstererek T
 | **Problem** | Özel PDF belgelerinde arama yapmak isteyen ekiplerin veriyi üçüncü taraf bir yapay zekâ servisine göndermek zorunda kalması |
 | **Çözüm** | Ollama, Qdrant ve PostgreSQL kullanan; cevaplarını sayfa ve parça düzeyinde kaynaklandıran yerel RAG sistemi |
 | **Zor mühendislik kararları** | Kullanıcı bazlı vektör filtreleme, başarısız işlemde eski indeksi koruyan güvenli yeniden indeksleme ve dosya yükleme savunmaları |
-| **Doğrulama** | Backend/frontend birim testleri, GitHub Actions ve Docker Compose ile tekrarlanabilir tam yığın kurulum |
+| **Doğrulama** | 26 backend + 14 frontend testi, GitHub Actions, CodeQL ve Docker Compose ile tekrarlanabilir tam yığın kurulum |
 
 Bu proje; RAG akışını bir demo çağrısından çıkarıp kimlik doğrulama, sahiplik sınırları, kalıcı veri, hata durumları ve kaynak gösterimi olan gerçek bir ürüne dönüştürebildiğimi gösterir.
 
@@ -66,7 +70,7 @@ PDF → metin çıkarma → parçalara ayırma → Ollama embedding
 - JWT doğrulama, sahiplik kontrolleri ve endpoint bazlı hız sınırlama
 - 100 MB sınırı, PDF imza kontrolü, güvenli fiziksel dosya adı ve işlem sınırları
 - Docker Compose, çok aşamalı üretim imajı ve GitHub Actions CI
-- Backend ve frontend birim testleri
+- 26 backend ve 14 frontend otomatik testi
 
 ## Mimari
 
@@ -171,6 +175,8 @@ npm run preview
 Vite `http://localhost:5173` adresinde çalışır ve `/api` isteklerini `http://localhost:5129` adresine yönlendirir.
 
 ## Test ve doğrulama
+
+Depo; 26 backend ve 14 frontend testini, TypeScript tip kontrolünü, üretim derlemesini ve Docker imajı paketlemesini CI üzerinde ayrı kalite kapıları olarak çalıştırır. CodeQL ayrıca C# ve JavaScript/TypeScript kaynaklarını tarar.
 
 ```powershell
 dotnet test tests\SmartDocsAI.API.Tests\SmartDocsAI.API.Tests.csproj --configuration Release
