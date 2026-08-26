@@ -629,6 +629,7 @@ function App() {
 
   return (
     <div className="app-shell">
+      <h1 className="sr-only">SmartDocs AI çalışma alanı</h1>
       <aside className="sidebar panel">
         <div>
           <div className="brand-pill"><span className="brand-mark">✦</span> SmartDocs AI</div>
