@@ -10,6 +10,8 @@
 
 SmartDocs AI, kullanıcının kendi PDF belgeleri üzerinde kaynak göstererek Türkçe soru-cevap yapmasını sağlayan, yerel çalışabilen bir RAG uygulamasıdır.
 
+> **English summary:** Privacy-focused full-stack RAG application for asking sourced questions over private PDF documents. Built with ASP.NET Core, React/TypeScript, PostgreSQL, Qdrant and Ollama; includes authentication, per-user ownership boundaries, secure PDF ingestion, automated tests, CI and Docker-based deployment.
+
 <p align="center">
   <a href="https://smartdocs-ai-henna.vercel.app"><strong>Canlı vitrin demosu →</strong></a>
   &nbsp;·&nbsp;
