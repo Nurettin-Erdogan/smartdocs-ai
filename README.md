@@ -31,7 +31,7 @@ SmartDocs AI, kullanıcının kendi PDF belgeleri üzerinde kaynak göstererek T
 <p align="center">
   <img src="docs/screenshots/sourced-answer-demo.jpg" alt="SmartDocs AI belge listesi, kaynaklı cevap ve sayfa referansları" width="1100">
 </p>
-<p align="center"><sub>Güncel frontend, sentetik demo belgeleri ve cevap verisiyle gösterilmiştir.</sub></p>
+<p align="center"><sub>Canlı vitrin, örnek belgelerin yanında kullanıcının kendi metin tabanlı PDF’sini de tarayıcı içinde işler.</sub></p>
 
 ## Portföy özeti
 
@@ -44,14 +44,19 @@ SmartDocs AI, kullanıcının kendi PDF belgeleri üzerinde kaynak göstererek T
 
 Bu proje; RAG akışını bir demo çağrısından çıkarıp kimlik doğrulama, sahiplik sınırları, kalıcı veri, hata durumları ve kaynak gösterimi olan gerçek bir ürüne dönüştürebildiğimi gösterir.
 
-Repository ayrıca ağır Ollama/Qdrant altyapısı olmadan arayüzü gezilebilir kılan bir
-**vitrin demo modu** içerir. Bu mod yalnızca sentetik örnek veriler kullanır; seçilen
-dosyaları tarayıcı belleğinin dışına göndermez. Tam RAG davranışı için Docker kurulumu
-kullanılmalıdır.
+Repository ayrıca ağır Ollama/Qdrant altyapısı olmadan çalışan bir **yerel PDF modu**
+içerir. Canlı Vercel sürümünde yüklenen PDF, PDF.js ile doğrudan tarayıcıda okunur;
+sayfalara göre parçalanır ve soruya en yakın gerçek bölümler kaynaklarıyla gösterilir.
+Dosya cihazdan dışarı gönderilmez ve sayfa yenilendiğinde yerel oturum temizlenir.
+Embedding ve üretken model kullanan tam RAG davranışı için Docker kurulumu kullanılmalıdır.
 
 Canlı demo: <https://smartdocs-ai-henna.vercel.app>
 
 ```text
+Canlı vitrin: PDF → tarayıcıda metin çıkarma → yerel parçalara ayırma
+             → soru eşleştirme → sayfa kaynaklı çıkarımsal cevap
+
+Tam kurulum:
 PDF → metin çıkarma → parçalara ayırma → Ollama embedding
     → Qdrant anlamsal arama → Ollama cevap üretimi → kaynaklı cevap
 ```

@@ -4,6 +4,8 @@ Bu senaryo SmartDocs AI'ın RAG akışını yalnızca “PDF'e soru sordum” d�
 
 ## Hazırlık
 
+- Canlı Vercel vitrini kullanılacaksa kayıt olmadan yerel PDF modunu aç; metin tabanlı
+  PDF tarayıcı içinde işlenir ve sunucuya gönderilmez.
 - Docker Desktop ve Ollama'yı başlat.
 - `nomic-embed-text` ve `llama3` modellerinin hazır olduğunu doğrula.
 - Kişisel veya gizli belge yerine kısa, paylaşılabilir bir örnek PDF kullan.
@@ -15,7 +17,7 @@ Bu senaryo SmartDocs AI'ın RAG akışını yalnızca “PDF'e soru sordum” d�
 
 ## 0:30–1:15 — Belge akışı
 
-1. Yeni kullanıcı oluştur veya demo hesabıyla giriş yap.
+1. Yeni kullanıcı oluştur veya canlı vitrinde “Kendi PDF’inle dene” seçeneğini aç.
 2. Örnek PDF'i yükle.
 3. `Pending → Ready` indeksleme durumunu göster.
 4. Metin içermeyen veya başarısız bir belgenin açık hata durumuna geçtiğini anlat.

@@ -27,24 +27,46 @@ describe('portfolio demo API', () => {
     const result = await answerPromise;
 
     expect(started).toHaveBeenCalledOnce();
-    expect(result.sources).toHaveLength(2);
-    expect(chunks.join('')).toContain('rol bazlı erişim');
+    expect(result.sources).toEqual([
+      expect.objectContaining({ documentId: 12, title: 'Bilgi Güvenliği Politikası' })
+    ]);
+    expect(chunks.join('').toLocaleLowerCase('tr-TR')).toContain('rol bazlı');
 
     const conversation = await demoApi.getConversation(result.conversationId);
     expect(conversation.messages[conversation.messages.length - 1]?.answer).toBe(result.answer);
   });
 
-  it('keeps uploaded sample files in memory only', async () => {
-    const demoApi = createDemoApi();
+  it('indexes the uploaded PDF text locally and answers from its real content', async () => {
+    const demoApi = createDemoApi({
+      extractPdf: vi.fn().mockResolvedValue([
+        {
+          chunkIndex: 0,
+          pageNumber: 4,
+          content: 'Proje teslim tarihi 18 Eylül 2026 olarak belirlenmiştir. Sorumlu ekip ürün geliştirme ekibidir.'
+        }
+      ])
+    });
     const file = new File(['demo'], 'yeni-politika.pdf', { type: 'application/pdf' });
 
     const uploaded = await demoApi.uploadDocument(file);
     const documents = await demoApi.listDocuments();
+    const result = await demoApi.askChat({
+      question: 'Proje teslim tarihi ne zaman?',
+      documentIds: [uploaded.id]
+    });
 
     expect(uploaded).toMatchObject({
       fileName: 'yeni-politika.pdf',
       indexingStatus: 'Ready'
     });
     expect(documents[0]?.id).toBe(uploaded.id);
+    expect(result.answer).toContain('18 Eylül 2026');
+    expect(result.sources).toEqual([
+      expect.objectContaining({
+        documentId: uploaded.id,
+        pageNumber: 4,
+        content: expect.stringContaining('18 Eylül 2026')
+      })
+    ]);
   });
 });

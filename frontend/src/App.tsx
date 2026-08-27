@@ -246,7 +246,7 @@ function App() {
     });
     setNotification({
       kind: 'info',
-      message: 'Vitrin demosu açıldı. Örnek belgelerle tüm arayüzü deneyebilirsin.'
+      message: 'Yerel PDF modu açıldı. Kendi PDF’ni ekleyebilirsin; dosya cihazından dışarı çıkmaz.'
     });
   };
 
@@ -326,13 +326,16 @@ function App() {
     try {
       const result = await api.uploadDocument(uploadFile);
       setNotification({
-        kind: 'info',
-        message: 'PDF alındı. Arka planda hazırlanıyor; bu sırada çalışmaya devam edebilirsin.'
+        kind: result.indexingStatus === 'Ready' ? 'success' : 'info',
+        message: result.indexingStatus === 'Ready'
+          ? isDemoMode
+            ? 'PDF cihazında okundu ve sorulara hazır. Yalnızca bu belge seçildi.'
+            : 'PDF hazırlandı ve sorulara hazır.'
+          : 'PDF alındı. Arka planda hazırlanıyor; bu sırada çalışmaya devam edebilirsin.'
       });
       setUploadFile(null);
       if (result.indexingStatus === 'Ready') {
-        setSelectedDocumentIds((currentIds) =>
-          currentIds.includes(result.id) ? currentIds : [...currentIds, result.id]);
+        setSelectedDocumentIds([result.id]);
       }
       if (fileInputRef.current) fileInputRef.current.value = '';
       await refreshData(false);
@@ -607,12 +610,12 @@ function App() {
                 <div className="demo-divider"><span>veya</span></div>
                 <button className="demo-btn" type="button" onClick={handleOpenDemo}>
                   <span className="demo-btn-icon">▶</span>
-                  <span><strong>Canlı demoyu incele</strong><small>Kayıt gerekmez · örnek veriler kullanılır</small></span>
+                  <span><strong>Kendi PDF’inle dene</strong><small>Kayıt gerekmez · dosya cihazında işlenir</small></span>
                 </button>
               </div>
             )}
 
-            <p className="auth-security"><span>⌁</span> Verilerin üçüncü taraflarla paylaşılmaz.</p>
+            <p className="auth-security"><span>⌁</span> Demo modunda PDF tarayıcıda okunur; sunucuya yüklenmez.</p>
           </section>
         </main>
 
@@ -633,7 +636,7 @@ function App() {
       <aside className="sidebar panel">
         <div>
           <div className="brand-pill"><span className="brand-mark">✦</span> SmartDocs AI</div>
-          {isDemoMode && <div className="demo-mode-badge"><span /> Vitrin demosu</div>}
+          {isDemoMode && <div className="demo-mode-badge"><span /> Yerel PDF modu</div>}
           <h2>{user.fullName}</h2>
           <p>{user.email}</p>
           <div className="role-tag">{user.role ?? 'Kullanıcı'}</div>
@@ -692,7 +695,9 @@ function App() {
             />
           </label>
           <div className="upload-help-row">
-            <small id="upload-help" className="muted">En fazla 100 MB · yalnızca PDF</small>
+            <small id="upload-help" className="muted">
+              En fazla 100 MB · yalnızca PDF{isDemoMode ? ' · cihazında işlenir' : ''}
+            </small>
             {uploadFile && (
               <button
                 type="button"

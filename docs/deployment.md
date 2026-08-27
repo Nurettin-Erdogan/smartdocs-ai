@@ -2,10 +2,10 @@
 
 Bu belge Docker Compose ile tek makine kurulumu ve üretime geçerken gereken operasyonel ayarları anlatır.
 
-## Vercel vitrin demosu
+## Vercel yerel PDF vitrini
 
-Kök dizindeki `vercel.json`, React arayüzünü sentetik örnek verilerle çalışan demo
-modunda yayımlar. Bu dağıtım PostgreSQL, Qdrant veya Ollama gerektirmez:
+Kök dizindeki `vercel.json`, React arayüzünü tarayıcı içinde PDF işleyen demo modunda
+yayımlar. Bu dağıtım PostgreSQL, Qdrant veya Ollama gerektirmez:
 
 Canlı adres: <https://smartdocs-ai-henna.vercel.app>
 
@@ -15,9 +15,11 @@ npm ci
 npm run build:demo
 ```
 
-Demo modunda kayıt, belge yükleme, silme ve sohbet işlemleri yalnızca sayfa açıkken
-tarayıcı belleğinde tutulur. Gerçek kullanıcı verisi göndermeyin; kalıcı veri ve gerçek
-RAG cevapları için aşağıdaki Docker kurulumunu kullanın.
+Demo modunda PDF.js dosyanın metin katmanını tarayıcı içinde okur, sayfa bazlı parçalar
+oluşturur ve soruya en yakın gerçek bölümleri kaynaklarıyla gösterir. Dosya sunucuya
+gönderilmez; belge, indeks ve sohbet yalnızca sayfa açıkken bellekte tutulur. Taranmış
+görüntü PDF’leri OCR olmadan okunamaz. Kalıcı veri, embedding tabanlı anlamsal arama ve
+üretken cevaplar için aşağıdaki Docker kurulumunu kullanın.
 
 ## Servisler
 
