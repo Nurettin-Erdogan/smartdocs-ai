@@ -12,7 +12,6 @@
 
 SmartDocs AI, kullanıcının kendi PDF belgeleri üzerinde kaynak göstererek Türkçe soru-cevap yapmasını sağlayan, yerel çalışabilen bir RAG uygulamasıdır.
 
-> **English summary:** Privacy-focused full-stack RAG application for asking sourced questions over private PDF documents. Built with ASP.NET Core, React/TypeScript, PostgreSQL, Qdrant and Ollama; includes authentication, per-user ownership boundaries, secure PDF ingestion, automated tests, CI and Docker-based deployment.
 
 <p align="center">
   <a href="https://smartdocs-ai-henna.vercel.app"><strong>Canlı vitrin demosu →</strong></a>
@@ -40,7 +39,7 @@ SmartDocs AI, kullanıcının kendi PDF belgeleri üzerinde kaynak göstererek T
 | **Problem** | Özel PDF belgelerinde arama yapmak isteyen ekiplerin veriyi üçüncü taraf bir yapay zekâ servisine göndermek zorunda kalması |
 | **Çözüm** | Ollama, Qdrant ve PostgreSQL kullanan; cevaplarını sayfa ve parça düzeyinde kaynaklandıran yerel RAG sistemi |
 | **Zor mühendislik kararları** | Kullanıcı bazlı vektör filtreleme, başarısız işlemde eski indeksi koruyan güvenli yeniden indeksleme ve dosya yükleme savunmaları |
-| **Doğrulama** | 26 backend + 14 frontend testi, GitHub Actions, CodeQL ve Docker Compose ile tekrarlanabilir tam yığın kurulum |
+| **Doğrulama** | GitHub Actions, CodeQL, otomatik backend/frontend testleri ve Docker Compose ile tekrarlanabilir tam yığın kurulum |
 
 Bu proje; RAG akışını bir demo çağrısından çıkarıp kimlik doğrulama, sahiplik sınırları, kalıcı veri, hata durumları ve kaynak gösterimi olan gerçek bir ürüne dönüştürebildiğimi gösterir.
 
@@ -75,7 +74,7 @@ PDF → metin çıkarma → parçalara ayırma → Ollama embedding
 - JWT doğrulama, sahiplik kontrolleri ve endpoint bazlı hız sınırlama
 - 100 MB sınırı, PDF imza kontrolü, güvenli fiziksel dosya adı ve işlem sınırları
 - Docker Compose, çok aşamalı üretim imajı ve GitHub Actions CI
-- 26 backend ve 14 frontend otomatik testi
+- Backend ve frontend için otomatik test kapsamı
 
 ## Mimari
 
@@ -181,7 +180,7 @@ Vite `http://localhost:5173` adresinde çalışır ve `/api` isteklerini `http:/
 
 ## Test ve doğrulama
 
-Depo; 26 backend ve 14 frontend testini, TypeScript tip kontrolünü, üretim derlemesini ve Docker imajı paketlemesini CI üzerinde ayrı kalite kapıları olarak çalıştırır. CodeQL ayrıca C# ve JavaScript/TypeScript kaynaklarını tarar.
+Depo; backend ve frontend testlerini, TypeScript tip kontrolünü, üretim derlemesini ve Docker imajı paketlemesini CI üzerinde ayrı kalite kapıları olarak çalıştırır. CodeQL ayrıca C# ve JavaScript/TypeScript kaynaklarını tarar.
 
 ```powershell
 dotnet test tests\SmartDocsAI.API.Tests\SmartDocsAI.API.Tests.csproj --configuration Release
