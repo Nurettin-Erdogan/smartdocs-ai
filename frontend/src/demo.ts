@@ -103,6 +103,20 @@ type DemoApiOptions = {
   extractPdf?: (file: File) => Promise<LocalPdfChunk[]>;
 };
 
+type QuestionIntent =
+  | 'document-identity'
+  | 'document-purpose'
+  | 'summary'
+  | 'greeting'
+  | 'thanks'
+  | 'retrieval';
+
+type DocumentProfile = {
+  label: string;
+  purpose: string;
+  evidenceTerms: string[];
+};
+
 const STOP_WORDS = new Set([
   'acaba', 'ama', 'bana', 'benim', 'bir', 'biri', 'bunu', 'bu', 'da', 'daha', 'de',
   'diye', 'en', 'gibi', 'hangi', 'için', 'ile', 'ise', 'mi', 'mı', 'mu', 'mü', 'nasıl',
@@ -116,6 +130,127 @@ const normalize = (value: string) => value
   .replace(/[^a-z0-9çğıöşü\s]/g, ' ')
   .replace(/\s+/g, ' ')
   .trim();
+
+const canonical = (value: string) => normalize(value)
+  .replace(/[ç]/g, 'c')
+  .replace(/[ğ]/g, 'g')
+  .replace(/[ı]/g, 'i')
+  .replace(/[ö]/g, 'o')
+  .replace(/[ş]/g, 's')
+  .replace(/[ü]/g, 'u');
+
+const questionIntent = (question: string): QuestionIntent => {
+  const value = canonical(question);
+
+  if (/^(merhaba|selam|selamlar|hey|naber|nasilsin)$/.test(value)) return 'greeting';
+  if (/^(tesekkurler|tesekkur ederim|sag ol|sagol|eyvallah)$/.test(value)) return 'thanks';
+  if (
+    /\b(bu|su) ne (kagidi|belgesi|dosyasi|dokumani)\b/.test(value) ||
+    /\b(bu|su) (belge|dosya|dokuman) ne(dir)?$/.test(value) ||
+    /\b(hangi|ne) (tur|tip) (belge|dosya|dokuman)\b/.test(value) ||
+    /\b(hangi|ne) belgesi\b/.test(value) ||
+    /^(bu|su) ne(dir)?$/.test(value)
+  ) return 'document-identity';
+  if (
+    /\b(ne ise yariyor|ne icin|amaci ne|amaci nedir|neden duzenlenmis|neden verilmis)\b/.test(value)
+  ) return 'document-purpose';
+  if (/\b(ozetle|ozeti|kisa ozet|kisaca|ne anlatiyor|icerigi ne)\b/.test(value)) return 'summary';
+
+  return 'retrieval';
+};
+
+const DOCUMENT_PROFILES: Array<{ patterns: RegExp[]; profile: DocumentProfile }> = [
+  {
+    patterns: [/sinava? giris belgesi/, /sinav giris dokumani/],
+    profile: {
+      label: 'Sınava Giriş Belgesi',
+      purpose: 'sınava katılım ve salon girişinde kullanılmak üzere düzenlenmiş; adayın yanında bulundurması gereken evrakları ve temel sınav kurallarını açıklıyor',
+      evidenceTerms: ['sinav', 'aday', 'salon', 'kimlik', 'giris belgesi']
+    }
+  },
+  {
+    patterns: [/ozgecmis/, /curriculum vitae/, /\bcv\b/],
+    profile: {
+      label: 'Özgeçmiş (CV)',
+      purpose: 'kişinin eğitimini, deneyimini, yetkinliklerini ve iletişim bilgilerini iş veya staj başvuruları için sunuyor',
+      evidenceTerms: ['egitim', 'deneyim', 'yetkinlik', 'iletisim', 'ozgecmis']
+    }
+  },
+  {
+    patterns: [/\bfatura\b/, /invoice/],
+    profile: {
+      label: 'Fatura',
+      purpose: 'satılan ürün veya hizmetin taraflarını, tutarını, vergilerini ve ödeme bilgilerini kayıt altına alıyor',
+      evidenceTerms: ['fatura', 'tutar', 'vergi', 'toplam', 'odeme']
+    }
+  },
+  {
+    patterns: [/\bsozlesme\b/, /\bprotokol\b/],
+    profile: {
+      label: 'Sözleşme',
+      purpose: 'tarafların haklarını, yükümlülüklerini ve üzerinde anlaştıkları koşulları kayıt altına alıyor',
+      evidenceTerms: ['taraf', 'yukumluluk', 'madde', 'imza', 'sozlesme']
+    }
+  },
+  {
+    patterns: [/\btranskript\b/, /not dokumu/],
+    profile: {
+      label: 'Akademik Transkript',
+      purpose: 'alınan dersleri, notları ve akademik başarı durumunu resmi olarak gösteriyor',
+      evidenceTerms: ['ders', 'not', 'kredi', 'donem', 'transkript']
+    }
+  },
+  {
+    patterns: [/\bdiploma\b/, /\bsertifika\b/, /katilim belgesi/],
+    profile: {
+      label: 'Sertifika veya Diploma',
+      purpose: 'bir eğitim, yeterlilik veya katılım durumunu belgelemek üzere düzenlenmiş',
+      evidenceTerms: ['egitim', 'basari', 'katilim', 'mezun', 'sertifika']
+    }
+  },
+  {
+    patterns: [/nufus cuzdani/, /kimlik karti/, /\bpasaport\b/],
+    profile: {
+      label: 'Kimlik Belgesi',
+      purpose: 'belge sahibinin kimliğini resmi olarak doğrulamak üzere düzenlenmiş',
+      evidenceTerms: ['kimlik', 'ad', 'soyad', 'dogum', 'gecerlilik']
+    }
+  },
+  {
+    patterns: [/\bpolitika\b/],
+    profile: {
+      label: 'Politika Belgesi',
+      purpose: 'bir kurumun belirli bir konudaki kurallarını, sorumluluklarını ve uygulama esaslarını tanımlıyor',
+      evidenceTerms: ['politika', 'kural', 'sorumluluk', 'uygulama', 'kapsam']
+    }
+  },
+  {
+    patterns: [/\brehber\b/, /\bkilavuz\b/],
+    profile: {
+      label: 'Rehber veya Kılavuz',
+      purpose: 'bir konuda izlenecek adımları, kuralları ve önerileri açıklıyor',
+      evidenceTerms: ['rehber', 'kilavuz', 'adim', 'uygulama', 'oneri']
+    }
+  },
+  {
+    patterns: [/\brapor\b/, /degerlendirmesi/],
+    profile: {
+      label: 'Rapor',
+      purpose: 'incelenen konuya ilişkin bulguları, değerlendirmeleri ve varsa sonuçları bir araya getiriyor',
+      evidenceTerms: ['bulgu', 'degerlendirme', 'sonuc', 'rapor', 'risk']
+    }
+  }
+];
+
+const profileFor = (document: DocumentItem, chunks: StoredChunk[]): DocumentProfile | null => {
+  const firstPages = [...chunks]
+    .sort((left, right) => left.pageNumber - right.pageNumber || left.chunkIndex - right.chunkIndex)
+    .slice(0, 4)
+    .map((chunk) => chunk.content)
+    .join(' ');
+  const searchable = canonical(`${document.title} ${document.fileName} ${firstPages}`);
+  return DOCUMENT_PROFILES.find(({ patterns }) => patterns.some((pattern) => pattern.test(searchable)))?.profile ?? null;
+};
 
 const questionTerms = (question: string) => [...new Set(
   normalize(question)
@@ -141,6 +276,11 @@ const scoreChunk = (chunk: StoredChunk, terms: string[]) => {
 };
 
 const sourceExcerpt = (source: ChatSource, terms: string[]) => {
+  if (terms.length === 0) {
+    const content = source.content.trim();
+    return content.length <= 360 ? content : `${content.slice(0, 357).trimEnd()}…`;
+  }
+
   const sentences = source.content
     .split(/(?<=[.!?…])\s+/)
     .map((sentence) => sentence.trim())
@@ -171,6 +311,45 @@ const answerFor = (question: string, sources: ChatSource[], hasDirectMatch: bool
 
   return `${introduction}\n\n${excerpts.join('\n\n')}\n\n` +
     'Yanıt yalnızca tarayıcıda okunan belge metninden çıkarılmıştır; kaynak kartlarından ilgili sayfaları kontrol edebilirsin.';
+};
+
+const overviewAnswer = (
+  intent: QuestionIntent,
+  document: DocumentItem | undefined,
+  profile: DocumentProfile | null,
+  sources: ChatSource[]
+) => {
+  if (intent === 'greeting') {
+    return 'Merhaba! Seçtiğin belgeyi açıklayabilir, özetleyebilir veya içindeki belirli bir bilgiyi bulabilirim. Ne öğrenmek istersin?';
+  }
+  if (intent === 'thanks') {
+    return 'Rica ederim. Belgeyle ilgili başka bir sorunu da yanıtlayabilirim.';
+  }
+  if (!document || sources.length === 0) {
+    return 'Yanıtlayabilmem için okunabilir bir belge yükleyip seçmelisin.';
+  }
+
+  const documentDescription = profile
+    ? `Bu belge bir ${profile.label}.`
+    : `Bu, “${document.title}” başlıklı bir PDF belgesi.`;
+  const purpose = profile
+    ? ` ${profile.purpose.charAt(0).toLocaleUpperCase('tr-TR')}${profile.purpose.slice(1)}.`
+    : '';
+
+  if (intent === 'document-identity') return `${documentDescription}${purpose}`;
+  if (intent === 'document-purpose') {
+    return profile
+      ? `Bu ${profile.label}, ${profile.purpose}.`
+      : `${documentDescription} Okunabilen bölümlerde belgenin amacı açıkça belirtilmiyor; aşağıdaki kaynaklardan içeriğini inceleyebilirsin.`;
+  }
+
+  const excerpts = sources
+    .slice(0, 2)
+    .map((source) => sourceExcerpt(source, []))
+    .filter((excerpt, index, all) => all.findIndex((item) => canonical(item) === canonical(excerpt)) === index)
+    .map((excerpt) => `• ${excerpt}`);
+  return `Kısaca: ${documentDescription}${purpose}` +
+    (excerpts.length ? `\n\nÖne çıkan bilgiler:\n${excerpts.join('\n')}` : '');
 };
 
 const initialStoredChunks = (): StoredChunk[] => [
@@ -245,6 +424,38 @@ export function createDemoApi(options: DemoApiOptions = {}) {
     return { sources, hasDirectMatch };
   };
 
+  const overviewFor = (documentIds?: number[]) => {
+    const requestedIds = documentIds?.length ? documentIds : documents.map((document) => document.id);
+    const document = requestedIds
+      .map((id) => documents.find((item) => item.id === id))
+      .find((item) => item?.indexingStatus === 'Ready');
+    if (!document) return { document: undefined, profile: null, sources: [] as ChatSource[] };
+
+    const documentChunks = storedChunks.filter((chunk) => chunk.documentId === document.id);
+    const profile = profileFor(document, documentChunks);
+    const ranked = documentChunks
+      .map((chunk) => {
+        const content = canonical(chunk.content);
+        const evidenceScore = profile?.evidenceTerms
+          .filter((term) => content.includes(canonical(term))).length ?? 0;
+        const pageBonus = chunk.pageNumber === 1 ? 2 : 1 / Math.max(chunk.pageNumber, 1);
+        return { chunk, score: evidenceScore + pageBonus };
+      })
+      .sort((left, right) => right.score - left.score || left.chunk.pageNumber - right.chunk.pageNumber || left.chunk.chunkIndex - right.chunk.chunkIndex)
+      .slice(0, 3);
+    const highestScore = ranked[0]?.score || 1;
+    const sources: ChatSource[] = ranked.map(({ chunk, score }) => ({
+      documentId: chunk.documentId,
+      title: chunk.title,
+      chunkIndex: chunk.chunkIndex,
+      pageNumber: chunk.pageNumber,
+      score: Math.min(0.99, 0.7 + (score / highestScore) * 0.29),
+      content: chunk.content
+    }));
+
+    return { document, profile, sources };
+  };
+
   return {
     register: async (body: { fullName: string; email: string; password: string }) => ({
       ...DEMO_USER,
@@ -314,8 +525,15 @@ export function createDemoApi(options: DemoApiOptions = {}) {
         ? body.conversationId
         : nextConversationId++;
       const createdAt = new Date().toISOString();
-      const { sources, hasDirectMatch } = sourcesFor(body.question, body.documentIds);
-      const answer = answerFor(body.question, sources, hasDirectMatch);
+      const intent = questionIntent(body.question);
+      const isOverviewIntent = intent !== 'retrieval';
+      const needsDocument = intent === 'document-identity' || intent === 'document-purpose' || intent === 'summary';
+      const overview = needsDocument ? overviewFor(body.documentIds) : null;
+      const retrieval = isOverviewIntent ? null : sourcesFor(body.question, body.documentIds);
+      const sources = overview?.sources ?? retrieval?.sources ?? [];
+      const answer = isOverviewIntent
+        ? overviewAnswer(intent, overview?.document, overview?.profile ?? null, sources)
+        : answerFor(body.question, sources, retrieval?.hasDirectMatch ?? false);
       const chunks = answer.match(/.{1,34}(?:\s|$)/g) ?? [answer];
 
       callbacks.onStart?.({ conversationId, sources });

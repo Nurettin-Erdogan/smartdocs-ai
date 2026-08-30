@@ -81,4 +81,69 @@ describe('portfolio demo API', () => {
 
     expect(preview).toBe(file);
   });
+
+  it('recognizes a document identity question instead of matching the word paper', async () => {
+    const demoApi = createDemoApi({
+      extractPdf: async () => [
+        {
+          chunkIndex: 0,
+          pageNumber: 1,
+          content: 'SINAVA GİRİŞ BELGESİ. Adayın sınava gireceği bina ve salon bilgileri bu belgede yer alır.'
+        },
+        {
+          chunkIndex: 1,
+          pageNumber: 1,
+          content: 'Sınav tamamlandıktan sonra cevap kağıdı ve soru kitapçığı salon görevlisine teslim edilmelidir.'
+        }
+      ]
+    });
+    const uploaded = await demoApi.uploadDocument(
+      new File(['demo'], 'Sınava Giriş Belgesi.pdf', { type: 'application/pdf' })
+    );
+
+    const result = await demoApi.askChat({
+      question: 'bu ne kağıdı',
+      documentIds: [uploaded.id]
+    });
+
+    expect(result.answer).toContain('Sınava Giriş Belgesi');
+    expect(result.answer.toLocaleLowerCase('tr-TR')).toContain('sınava katılım');
+    expect(result.answer).not.toContain('Belgende soruyla en güçlü eşleşen');
+    expect(result.sources[0]).toMatchObject({ documentId: uploaded.id, pageNumber: 1 });
+  });
+
+  it('answers document purpose and summary questions naturally', async () => {
+    const demoApi = createDemoApi({
+      extractPdf: async () => [
+        {
+          chunkIndex: 0,
+          pageNumber: 1,
+          content: 'ÖZGEÇMİŞ. Eğitim, iş deneyimi ve teknik yetkinlikler.'
+        }
+      ]
+    });
+    const uploaded = await demoApi.uploadDocument(
+      new File(['demo'], 'Nurettin Erdogan CV.pdf', { type: 'application/pdf' })
+    );
+
+    const purpose = await demoApi.askChat({
+      question: 'Bu belge ne işe yarıyor?',
+      documentIds: [uploaded.id]
+    });
+    const summary = await demoApi.askChat({
+      question: 'Kısaca özetle',
+      documentIds: [uploaded.id]
+    });
+
+    expect(purpose.answer).toContain('iş veya staj başvuruları');
+    expect(summary.answer).toContain('Özgeçmiş (CV)');
+    expect(summary.answer).toContain('Eğitim, iş deneyimi');
+  });
+
+  it('responds to a greeting without inventing document facts', async () => {
+    const result = await createDemoApi().askChat({ question: 'merhaba' });
+
+    expect(result.answer).toContain('Merhaba');
+    expect(result.sources).toEqual([]);
+  });
 });
