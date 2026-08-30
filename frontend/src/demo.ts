@@ -256,6 +256,10 @@ export function createDemoApi(options: DemoApiOptions = {}) {
       await wait(90, signal);
       return documents.map(cloneDocument);
     },
+    getDocumentFile: async (id: number, signal?: AbortSignal) => {
+      await wait(60, signal);
+      return uploadedFiles.get(id) ?? null;
+    },
     uploadDocument: async (file: File) => {
       const extractedChunks = await pdfExtractor(file);
       const documentId = nextDocumentId++;

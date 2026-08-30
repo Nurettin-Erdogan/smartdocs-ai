@@ -12,7 +12,6 @@
 
 SmartDocs AI, kullanıcının kendi PDF belgeleri üzerinde kaynak göstererek Türkçe soru-cevap yapmasını sağlayan, yerel çalışabilen bir RAG uygulamasıdır.
 
-
 <p align="center">
   <a href="https://smartdocs-ai-henna.vercel.app"><strong>Canlı vitrin demosu →</strong></a>
   &nbsp;·&nbsp;
@@ -68,6 +67,7 @@ PDF → metin çıkarma → parçalara ayırma → Ollama embedding
 - Ollama `/api/embed` ve `/api/generate` entegrasyonu
 - Qdrant Query API ile kullanıcıya ait belgelerde filtreli arama
 - Belge, sayfa, parça ve benzerlik skoru içeren kaynak gösterimi
+- Kaynak kartından ilgili PDF sayfasına açılan, metni vurgulayan güvenli önizleme
 - Tam sohbet geçmişi, yeni sohbet ve oturum süresi yönetimi
 - Başarısız indekslemeyi tekrar deneme ve durum takibi
 - Yeni vektörleri önce yazarak eski indeksi koruyan güvenli yeniden indeksleme
@@ -90,14 +90,9 @@ Ayrıntılı akış için [sistem mimarisi](docs/system-architecture.md) belgesi
 
 ## Docker ile hızlı başlangıç
 
-Gereksinimler: Docker Desktop ve Ollama. Ollama ana bilgisayarda çalışacaksa önce modelleri indirin:
+Gereksinim: Docker Desktop. Ollama ve gerekli modeller uygulamayla birlikte Docker içinde hazırlanır; ayrıca Ollama kurmanız gerekmez.
 
-```powershell
-ollama pull nomic-embed-text
-ollama pull llama3
-```
-
-Windows'ta en kolay kurulum için `start-smartdocs.cmd` dosyasına çift tıklayın. Betik güvenli veritabanı/JWT anahtarlarını otomatik üretir, Docker servislerini başlatır, bağımlılıkların hazır olmasını bekler ve uygulamayı tarayıcıda açar.
+Windows'ta en kolay kurulum için `start-smartdocs.cmd` dosyasına çift tıklayın. Betik güvenli veritabanı/JWT anahtarlarını otomatik üretir, tüm servisleri ve modelleri hazırlar, bağımlılıkları denetler ve uygulamayı tarayıcıda açar.
 
 PowerShell üzerinden aynı işlem:
 
@@ -128,11 +123,13 @@ Servisleri başlatın:
 
 ```powershell
 docker compose up --build
+docker compose exec ollama ollama pull nomic-embed-text
+docker compose exec ollama ollama pull qwen2.5:3b
 ```
 
 Uygulama varsayılan olarak `http://localhost:8080` adresinde açılır. İlk kullanıcıyı arayüzdeki **Kayıt Ol** sekmesinden oluşturabilirsiniz.
 
-Ana bilgisayardaki Ollama konteynerden erişilemiyorsa Ollama'yı `OLLAMA_HOST=0.0.0.0:11434` ile yeniden başlatın veya [Docker içi Ollama seçeneğini](docs/deployment.md#docker-içinde-ollama) kullanın.
+İlk model indirmesi birkaç dakika sürebilir; sonraki açılışlarda modeller kalıcı Docker hacminden kullanılır.
 
 ## Yerel geliştirme
 
@@ -142,7 +139,7 @@ Gereksinimler:
 - Node.js 24 (Node 20 de mevcut frontend için uygundur)
 - PostgreSQL 17+
 - Qdrant 1.18+
-- Ollama ve `nomic-embed-text`, `llama3` modelleri
+- Ollama ve `nomic-embed-text`, `qwen2.5:3b` modelleri
 
 Backend gizli ayarlarını kaynak koda yazmadan tanımlayın:
 
@@ -201,6 +198,7 @@ CI aynı kontrolleri çalıştırır ve son aşamada üretim Docker imajını de
 | `POST` | `/api/auth/register` | Hesap oluşturur ve JWT döndürür |
 | `POST` | `/api/auth/login` | Oturum açar ve JWT döndürür |
 | `GET` | `/api/documents` | Kullanıcının belgelerini listeler |
+| `GET` | `/api/documents/{id}/file` | Kullanıcıya ait PDF'yi önizleme için aktarır |
 | `POST` | `/api/documents/upload` | PDF'yi kabul eder ve arka plan kuyruğuna alır |
 | `DELETE` | `/api/documents/{id}` | Belgeyi ve vektörlerini siler |
 | `POST` | `/api/documents/{id}/reindex` | Belgeyi yeniden indeksler |

@@ -18,9 +18,9 @@ services:
       QdrantSettings__BaseUrl: http://qdrant:6333
       QdrantSettings__CollectionName: ${QDRANT_COLLECTION:-smartdocs_chunks}
       QdrantSettings__VectorSize: ${QDRANT_VECTOR_SIZE:-768}
-      OllamaSettings__BaseUrl: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      OllamaSettings__BaseUrl: ${OLLAMA_BASE_URL:-http://ollama:11434}
       OllamaSettings__EmbeddingModel: ${OLLAMA_EMBEDDING_MODEL:-nomic-embed-text}
-      OllamaSettings__ChatModel: ${OLLAMA_CHAT_MODEL:-llama3}
+      OllamaSettings__ChatModel: ${OLLAMA_CHAT_MODEL:-qwen2.5:3b}
       OllamaSettings__WarmupTimeoutSeconds: ${OLLAMA_WARMUP_TIMEOUT_SECONDS:-30}
       OllamaSettings__KeepAlive: ${OLLAMA_KEEP_ALIVE:--1}
       OllamaSettings__TimeoutSeconds: ${OLLAMA_TIMEOUT_SECONDS:-0}
@@ -36,6 +36,8 @@ services:
       postgres:
         condition: service_healthy
       qdrant:
+        condition: service_started
+      ollama:
         condition: service_started
 
   postgres:
@@ -64,8 +66,6 @@ services:
 
   ollama:
     image: ollama/ollama:0.31.2
-    profiles:
-      - docker-ai
     restart: unless-stopped
     ports:
       - "${OLLAMA_BIND_HOST:-127.0.0.1}:${OLLAMA_PORT:-11434}:11434"

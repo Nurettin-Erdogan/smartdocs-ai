@@ -102,6 +102,14 @@ olarak yeniden denenir; son deneme de başarısız olursa durum `Failed` olur.
 
 Belge kullanıcının değilse veya yoksa `404` döner. Qdrant'taki hazır indeks güvenli biçimde temizlenemiyorsa veri tutarlılığını korumak için `503` döner. Aktif yeniden indeksleme sırasında `409` döner.
 
+### PDF önizleme
+
+`GET /api/documents/{id}/file`
+
+Kullanıcıya ait PDF dosyasını `application/pdf` olarak döndürür ve aralık isteklerini
+destekler. Arayüz bu endpoint'i belge önizleme ve kaynak sayfasına gitme için kullanır.
+Belge başka kullanıcıya aitse, siliniyorsa veya fiziksel dosya bulunamıyorsa `404` döner.
+
 ### Yeniden indeksleme
 
 `POST /api/documents/{id}/reindex`

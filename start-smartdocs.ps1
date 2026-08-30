@@ -36,11 +36,11 @@ JWT_TOKEN_KEY=$jwtKey
 SEED_ADMIN_NAME=SmartDocs Admin
 SEED_ADMIN_EMAIL=admin@smartdocs.ai
 SEED_ADMIN_PASSWORD=
-OLLAMA_BASE_URL=http://host.docker.internal:11434
+OLLAMA_BASE_URL=http://ollama:11434
 OLLAMA_BIND_HOST=127.0.0.1
 OLLAMA_PORT=11434
 OLLAMA_EMBEDDING_MODEL=nomic-embed-text
-OLLAMA_CHAT_MODEL=llama3
+OLLAMA_CHAT_MODEL=qwen2.5:3b
 OLLAMA_KEEP_ALIVE=-1
 OLLAMA_TIMEOUT_SECONDS=0
 OLLAMA_NUM_CONTEXT=4096
@@ -55,22 +55,18 @@ QDRANT_VECTOR_SIZE=768
     Write-Host 'Güvenli .env ayarları oluşturuldu.' -ForegroundColor Green
 }
 
-try {
-    $ollama = Invoke-RestMethod -Uri 'http://localhost:11434/api/tags' -TimeoutSec 5
-    $modelNames = @($ollama.models.name)
-    foreach ($requiredModel in @('llama3', 'nomic-embed-text')) {
-        if (-not ($modelNames | Where-Object { $_ -like "$requiredModel*" })) {
-            Write-Warning "Ollama modeli eksik: $requiredModel. 'ollama pull $requiredModel' komutunu çalıştırın."
-        }
-    }
-} catch {
-    Write-Warning 'Ollama şu anda yanıt vermiyor. Belge sohbeti için Ollama uygulamasını çalıştırın.'
-}
-
 Write-Host 'SmartDocs AI hazırlanıyor...' -ForegroundColor Cyan
 docker compose up -d --build
 if ($LASTEXITCODE -ne 0) {
     throw 'Docker servisleri başlatılamadı.'
+}
+
+Write-Host 'Yerel yapay zekâ modelleri hazırlanıyor...' -ForegroundColor Cyan
+foreach ($requiredModel in @('nomic-embed-text', 'qwen2.5:3b')) {
+    docker compose exec -T ollama ollama pull $requiredModel
+    if ($LASTEXITCODE -ne 0) {
+        throw "Ollama modeli hazırlanamadı: $requiredModel"
+    }
 }
 
 $portLine = Get-Content -LiteralPath $environmentPath |

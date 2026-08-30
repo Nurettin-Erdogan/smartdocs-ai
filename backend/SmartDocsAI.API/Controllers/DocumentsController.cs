@@ -157,6 +157,36 @@ public sealed class DocumentsController : ControllerBase
         return Ok(documents);
     }
 
+    [HttpGet("{id:int}/file")]
+    public async Task<IActionResult> GetDocumentFile(int id, CancellationToken cancellationToken)
+    {
+        if (!TryGetUserId(out var userId))
+        {
+            return Unauthorized(new { Message = "Kullanıcı oturumu geçersiz." });
+        }
+
+        var document = await _context.Documents
+            .AsNoTracking()
+            .Where(item => item.Id == id && item.UserId == userId)
+            .Select(item => new { item.FilePath, item.IndexingStatus })
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (document is null || document.IndexingStatus == "Deleting")
+        {
+            return NotFound(new { Message = "Belge bulunamadı veya bu belgeyi görüntüleme yetkiniz yok." });
+        }
+
+        if (!System.IO.File.Exists(document.FilePath))
+        {
+            return NotFound(new { Message = "Belgenin PDF dosyası depolama alanında bulunamadı." });
+        }
+
+        return PhysicalFile(
+            document.FilePath,
+            "application/pdf",
+            enableRangeProcessing: true);
+    }
+
     [HttpDelete("{id:int}")]
     [EnableRateLimiting("DocumentWritePolicy")]
     public async Task<IActionResult> DeleteDocument(int id, CancellationToken cancellationToken)

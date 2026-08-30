@@ -87,6 +87,40 @@ public sealed class DocumentsControllerTests : IAsyncLifetime
         Assert.Empty(_deletionService.DocumentIds);
     }
 
+    [Fact]
+    public async Task GetDocumentFile_ForOwner_ReturnsRangeEnabledPdf()
+    {
+        var document = await AddDocumentAsync("Ready");
+        await File.WriteAllBytesAsync(document.FilePath, "%PDF-1.4 test"u8.ToArray());
+
+        try
+        {
+            var controller = CreateController(document.UserId);
+
+            var result = await controller.GetDocumentFile(document.Id, CancellationToken.None);
+
+            var file = Assert.IsType<PhysicalFileResult>(result);
+            Assert.Equal(document.FilePath, file.FileName);
+            Assert.Equal("application/pdf", file.ContentType);
+            Assert.True(file.EnableRangeProcessing);
+        }
+        finally
+        {
+            File.Delete(document.FilePath);
+        }
+    }
+
+    [Fact]
+    public async Task GetDocumentFile_DoesNotRevealAnotherUsersDocument()
+    {
+        var document = await AddDocumentAsync("Ready");
+        var controller = CreateController(document.UserId + 1);
+
+        var result = await controller.GetDocumentFile(document.Id, CancellationToken.None);
+
+        Assert.IsType<NotFoundObjectResult>(result);
+    }
+
     private DocumentsController CreateController(int userId)
     {
         var controller = new DocumentsController(

@@ -22,7 +22,7 @@ public sealed class OllamaService : IOllamaService
             configuration["OllamaSettings:BaseUrl"] ?? "http://localhost:11434");
 
         _embeddingModel = configuration["OllamaSettings:EmbeddingModel"] ?? "nomic-embed-text";
-        _chatModel = configuration["OllamaSettings:ChatModel"] ?? "llama3";
+        _chatModel = configuration["OllamaSettings:ChatModel"] ?? "qwen2.5:3b";
         var configuredKeepAlive = configuration["OllamaSettings:KeepAlive"] ?? "-1";
         _keepAlive = int.TryParse(configuredKeepAlive, out var keepAliveNumber)
             ? keepAliveNumber

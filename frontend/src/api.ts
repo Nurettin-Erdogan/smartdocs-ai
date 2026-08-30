@@ -183,6 +183,29 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
   return payload as T;
 }
 
+async function apiFetchBlob(path: string, init: RequestInit = {}): Promise<Blob> {
+  const headers = new Headers(init.headers);
+  const token = getToken();
+  if (token) headers.set('Authorization', `Bearer ${token}`);
+
+  const response = await fetch(`${normalizedApiBaseUrl}${path}`, {
+    ...init,
+    headers
+  });
+
+  if (!response.ok) {
+    const payload = await parseResponsePayload(response);
+    const fallback = response.status === 401
+      ? 'Oturumunuzun süresi doldu. Lütfen yeniden giriş yapın.'
+      : 'PDF görüntülenemedi.';
+    const message = extractApiErrorMessage(payload, fallback);
+    if (response.status === 401 && token) unauthorizedHandler?.(message);
+    throw new ApiError(message, response.status, payload);
+  }
+
+  return response.blob();
+}
+
 async function streamChat(
   body: ChatRequest,
   callbacks: ChatStreamCallbacks = {}
@@ -284,6 +307,8 @@ const liveApi = {
     }),
   listDocuments: (signal?: AbortSignal) =>
     apiFetch<DocumentItem[]>('/documents', { signal }),
+  getDocumentFile: (id: number, signal?: AbortSignal) =>
+    apiFetchBlob(`/documents/${id}/file`, { signal }),
   uploadDocument: (file: File) => {
     const formData = new FormData();
     formData.append('file', file);

@@ -1,6 +1,7 @@
 using SmartDocsAI.API.Interfaces;
 using SmartDocsAI.API.Models;
 using UglyToad.PdfPig;
+using UglyToad.PdfPig.DocumentLayoutAnalysis.TextExtractor;
 
 namespace SmartDocsAI.API.Services;
 
@@ -110,7 +111,11 @@ public sealed class DocumentProcessor : IDocumentProcessor
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            var pageText = CleanText(page.Text);
+            // PdfPig's Page.Text preserves the PDF content-stream order and can
+            // silently join visually separate words (for example, a person's
+            // first and last name). The layout-aware extractor reconstructs
+            // human-readable spacing before the text is indexed for RAG.
+            var pageText = CleanText(ContentOrderTextExtractor.GetText(page, true));
             if (string.IsNullOrWhiteSpace(pageText))
             {
                 continue;

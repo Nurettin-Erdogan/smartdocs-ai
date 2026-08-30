@@ -29,7 +29,7 @@ Varsayılan Compose kurulumu şunları başlatır:
 - `postgres`: ilişkisel veritabanı
 - `qdrant`: vektör veritabanı
 
-Ollama varsayılan olarak ana bilgisayarda beklenir. İstenirse `docker-ai` profiliyle Compose içine alınabilir.
+Ollama varsayılan olarak aynı Compose yığını içinde çalışır. Böylece ayrıca Ollama kurmaya veya ana bilgisayar ağ ayarı yapmaya gerek kalmaz.
 
 ## 1. Ortam dosyası
 
@@ -54,52 +54,33 @@ $bytes = New-Object byte[] 64
 [Convert]::ToBase64String($bytes)
 ```
 
-## 2A. Ana bilgisayardaki Ollama
+## 2A. Docker içinde Ollama (varsayılan)
 
-Modelleri indirin:
-
-```powershell
-ollama pull nomic-embed-text
-ollama pull llama3
-```
-
-`.env` ayarı şöyle kalabilir:
-
-```dotenv
-OLLAMA_BASE_URL=http://host.docker.internal:11434
-```
-
-Ollama yalnızca `127.0.0.1` üzerinde dinliyorsa uygulama konteyneri ona erişemez. Windows'ta kullanıcı ortam değişkeni olarak `OLLAMA_HOST=0.0.0.0:11434` tanımlayıp Ollama'yı tamamen kapatıp yeniden açın. Güvenlik duvarında 11434 portunu genel ağa açmayın.
-
-Servisleri başlatın:
-
-```powershell
-docker compose up --build -d
-```
-
-## 2B. Docker içinde Ollama
-
-`.env` dosyasını değiştirin:
+`.env` ayarı şöyle kalır:
 
 ```dotenv
 OLLAMA_BASE_URL=http://ollama:11434
 ```
 
-Önce altyapı ve Ollama'yı başlatın:
+Tüm servisleri başlatıp modelleri hazırlayın:
 
 ```powershell
-docker compose --profile docker-ai up -d postgres qdrant ollama
-docker compose --profile docker-ai exec ollama ollama pull nomic-embed-text
-docker compose --profile docker-ai exec ollama ollama pull llama3
+docker compose up --build -d
+docker compose exec ollama ollama pull nomic-embed-text
+docker compose exec ollama ollama pull qwen2.5:3b
 ```
 
-Ardından uygulamayı ekleyin:
+Bu temel kurulum CPU ile çalışır. NVIDIA veya AMD GPU geçişi, makinenin sürücülerine göre Compose override dosyasında ayrıca yapılandırılmalıdır.
+
+## 2B. Ana bilgisayardaki Ollama (isteğe bağlı)
+
+Ollama'yı ana bilgisayarda kullanmak isterseniz `.env` değerini değiştirin:
 
 ```powershell
-docker compose --profile docker-ai up --build -d
+OLLAMA_BASE_URL=http://host.docker.internal:11434
 ```
 
-Bu temel profil CPU ile çalışır. NVIDIA veya AMD GPU geçişi, makinenin sürücülerine göre Compose override dosyasında ayrıca yapılandırılmalıdır.
+Ana bilgisayardaki Ollama'nın konteynerden erişilebilir bir adreste dinlediğinden ve gerekli modellerin yüklü olduğundan emin olun. Güvenlik duvarında 11434 portunu genel ağa açmayın.
 
 ## 3. Kurulumu doğrulama
 
@@ -118,7 +99,7 @@ Tarayıcıda `http://localhost:8080` adresini açın, kayıt olun ve metin içer
 | `postgres-data` | Uygulama veritabanı |
 | `qdrant-data` | Vektör koleksiyonu |
 | `uploads` | Yüklenen PDF dosyaları |
-| `ollama-data` | Yalnızca `docker-ai` profilinde modeller |
+| `ollama-data` | Yerel Ollama modelleri |
 
 `docker compose down` volume'ları silmez. `docker compose down -v` tüm kalıcı veriyi siler; yalnızca bilinçli veri sıfırlamada kullanılmalıdır.
 

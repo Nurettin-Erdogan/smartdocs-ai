@@ -6,8 +6,8 @@ Bu senaryo SmartDocs AI'ın RAG akışını yalnızca “PDF'e soru sordum” d�
 
 - Canlı Vercel vitrini kullanılacaksa kayıt olmadan yerel PDF modunu aç; metin tabanlı
   PDF tarayıcı içinde işlenir ve sunucuya gönderilmez.
-- Docker Desktop ve Ollama'yı başlat.
-- `nomic-embed-text` ve `llama3` modellerinin hazır olduğunu doğrula.
+- Docker Desktop'ı başlat.
+- `nomic-embed-text` ve `qwen2.5:3b` modellerinin hazır olduğunu doğrula.
 - Kişisel veya gizli belge yerine kısa, paylaşılabilir bir örnek PDF kullan.
 - `start-smartdocs.cmd` veya `docker compose up --build` ile sistemi aç.
 
@@ -28,8 +28,9 @@ Vurgu: yükleme boyutu, PDF imzası, güvenli fiziksel dosya adı ve işlem sın
 
 1. Yalnızca belgede yanıtı bulunan net bir soru sor.
 2. Cevabın altındaki belge, sayfa, parça ve benzerlik bilgilerini aç.
-3. Bir takip sorusu sorarak sohbet bağlamını göster.
-4. Yeni sohbet başlatıp geçmiş konuşmanın kalıcı olduğunu göster.
+3. **PDF’de aç** ile ilgili sayfaya git ve yanıtta kullanılan kaynak metnini doğrula.
+4. Bir takip sorusu sorarak sohbet bağlamını göster.
+5. Yeni sohbet başlatıp geçmiş konuşmanın kalıcı olduğunu göster.
 
 Vurgu: Qdrant araması kullanıcı kimliğiyle filtrelenir; kullanıcı başka hesabın belge veya sohbetine erişemez.
 

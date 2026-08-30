@@ -21,6 +21,10 @@ import {
   type Notification
 } from './components/NotificationBanner';
 import {
+  DocumentPreview,
+  type PreviewTarget
+} from './components/DocumentPreview';
+import {
   clearSession,
   loadSession,
   saveSession,
@@ -93,6 +97,7 @@ function App() {
   const [asking, setAsking] = useState(false);
   const [conversationLoading, setConversationLoading] = useState(false);
   const [documentAction, setDocumentAction] = useState<DocumentAction>(null);
+  const [previewTarget, setPreviewTarget] = useState<PreviewTarget | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const refreshControllerRef = useRef<AbortController | null>(null);
   const chatControllerRef = useRef<AbortController | null>(null);
@@ -114,6 +119,7 @@ function App() {
     setRefreshing(false);
     setConversationLoading(false);
     setDocumentAction(null);
+    setPreviewTarget(null);
     if (fileInputRef.current) fileInputRef.current.value = '';
   }, []);
 
@@ -347,11 +353,6 @@ function App() {
   };
 
   const handleDelete = async (document: DocumentItem) => {
-    const confirmed = window.confirm(
-      `“${document.title}” belgesi, dosyası ve arama indeksi kalıcı olarak silinsin mi?`
-    );
-    if (!confirmed) return;
-
     setDocumentAction({ id: document.id, kind: 'delete' });
     setNotification(null);
     try {
@@ -401,6 +402,9 @@ function App() {
     chatControllerRef.current = chatController;
     const temporaryMessageId = -Date.now();
     const createdAt = new Date().toISOString();
+    const conversationBeforeRequest = selectedConversation;
+    const conversationIdBeforeRequest = selectedConversationId;
+    const sourcesBeforeRequest = sources;
     try {
       const result = await api.askChat({
         question: trimmedQuestion,
@@ -449,6 +453,12 @@ function App() {
         // The optimistic message remains visible if refreshing the saved conversation fails.
       }
     } catch (error) {
+      // The backend removes a newly-created conversation when answer generation
+      // fails. Roll back the optimistic UI too, otherwise the next attempt sends
+      // the deleted conversation id and receives "Sohbet bulunamadı".
+      setSelectedConversationId(conversationIdBeforeRequest);
+      setSelectedConversation(conversationBeforeRequest);
+      setSources(sourcesBeforeRequest);
       if (isAbortError(error)) {
         setNotification({ kind: 'info', message: 'Cevap üretimi durduruldu.' });
       } else {
@@ -798,7 +808,20 @@ function App() {
                   <p className="document-error" role="status">{document.indexingError}</p>
                 )}
                 <div className="doc-actions">
-                  {document.indexingStatus === 'Failed' && (
+                  {document.indexingStatus === 'Ready' && (
+                    <button
+                      type="button"
+                      className="ghost-btn preview"
+                      onClick={() => setPreviewTarget({
+                        documentId: document.id,
+                        title: document.title,
+                        pageNumber: 1
+                      })}
+                    >
+                      Görüntüle
+                    </button>
+                  )}
+                  {['Ready', 'Failed', 'NoContent'].includes(document.indexingStatus) && (
                     <button
                       type="button"
                       className="ghost-btn retry"
@@ -807,7 +830,9 @@ function App() {
                     >
                       {documentAction?.id === document.id && documentAction.kind === 'reindex'
                         ? 'İndeksleniyor…'
-                        : 'Tekrar indeksle'}
+                        : document.indexingStatus === 'Ready'
+                          ? 'Yeniden indeksle'
+                          : 'Tekrar indeksle'}
                     </button>
                   )}
                   <button
@@ -936,13 +961,33 @@ function App() {
                 >
                   <strong>{source.title} · Sayfa {source.pageNumber}</strong>
                   <p>{source.content}</p>
-                  <small>Parça {source.chunkIndex} · Skor {source.score.toFixed(3)}</small>
+                  <div className="source-card-footer">
+                    <small>Parça {source.chunkIndex} · Skor {source.score.toFixed(3)}</small>
+                    <button
+                      type="button"
+                      onClick={() => setPreviewTarget({
+                        documentId: source.documentId,
+                        title: source.title,
+                        pageNumber: source.pageNumber,
+                        content: source.content
+                      })}
+                    >
+                      PDF’de aç →
+                    </button>
+                  </div>
                 </article>
               ))}
             </div>
           </div>
         </section>
       </main>
+
+      {previewTarget && (
+        <DocumentPreview
+          target={previewTarget}
+          onClose={() => setPreviewTarget(null)}
+        />
+      )}
 
       <NotificationBanner
         notification={notification}

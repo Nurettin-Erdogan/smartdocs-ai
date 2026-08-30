@@ -69,4 +69,16 @@ describe('portfolio demo API', () => {
       })
     ]);
   });
+
+  it('keeps an uploaded PDF available for local preview', async () => {
+    const file = new File(['%PDF-1.4'], 'onizleme.pdf', { type: 'application/pdf' });
+    const demoApi = createDemoApi({
+      extractPdf: async () => [{ chunkIndex: 0, pageNumber: 1, content: 'Önizleme metni' }]
+    });
+
+    const document = await demoApi.uploadDocument(file);
+    const preview = await demoApi.getDocumentFile(document.id);
+
+    expect(preview).toBe(file);
+  });
 });

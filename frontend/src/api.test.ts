@@ -47,6 +47,20 @@ describe('extractApiErrorMessage', () => {
     expect(fetchMock.mock.calls[0]?.[1]?.signal).toBe(controller.signal);
   });
 
+  it('downloads a PDF as a blob', async () => {
+    const pdf = new Blob(['%PDF-1.4'], { type: 'application/pdf' });
+    const fetchMock = vi.fn().mockResolvedValue(new Response(pdf, {
+      status: 200,
+      headers: { 'content-type': 'application/pdf' }
+    }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await api.getDocumentFile(17);
+
+    expect(result?.type).toBe('application/pdf');
+    expect(fetchMock.mock.calls[0]?.[0]).toContain('/documents/17/file');
+  });
+
   it('streams chat chunks in order and returns the completed answer', async () => {
     const encoder = new TextEncoder();
     const stream = new ReadableStream({
