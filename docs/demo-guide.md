@@ -4,8 +4,9 @@ Bu senaryo SmartDocs AI'ın RAG akışını yalnızca “PDF'e soru sordum” d�
 
 ## Hazırlık
 
-- Canlı Vercel vitrini kullanılacaksa kayıt olmadan yerel PDF modunu aç; metin tabanlı
-  PDF tarayıcı içinde işlenir ve sunucuya gönderilmez.
+- Canlı Vercel vitrini kullanılacaksa kayıt olmadan yapay zekâ destekli PDF alanını aç.
+  PDF tarayıcı içinde işlenir; dosyanın kendisi yüklenmez, yalnızca cevap için seçilen
+  metin bölümleri OpenAI API'ye gönderilir.
 - Docker Desktop'ı başlat.
 - `nomic-embed-text` ve `qwen2.5:3b` modellerinin hazır olduğunu doğrula.
 - Kişisel veya gizli belge yerine kısa, paylaşılabilir bir örnek PDF kullan.

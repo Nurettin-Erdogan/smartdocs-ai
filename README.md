@@ -29,7 +29,7 @@ SmartDocs AI, kullanıcının kendi PDF belgeleri üzerinde kaynak göstererek T
 <p align="center">
   <img src="docs/screenshots/sourced-answer-demo.jpg" alt="SmartDocs AI belge listesi, kaynaklı cevap ve sayfa referansları" width="1100">
 </p>
-<p align="center"><sub>Canlı vitrin, örnek belgelerin yanında kullanıcının kendi metin tabanlı PDF’sini de tarayıcı içinde işler.</sub></p>
+<p align="center"><sub>Canlı vitrin, PDF’yi tarayıcıda işler ve ilgili metin parçalarından yapay zekâ destekli, kaynaklı cevap üretir.</sub></p>
 
 ## Portföy özeti
 
@@ -42,17 +42,21 @@ SmartDocs AI, kullanıcının kendi PDF belgeleri üzerinde kaynak göstererek T
 
 Bu proje; RAG akışını bir demo çağrısından çıkarıp kimlik doğrulama, sahiplik sınırları, kalıcı veri, hata durumları ve kaynak gösterimi olan gerçek bir ürüne dönüştürebildiğimi gösterir.
 
-Repository ayrıca ağır Ollama/Qdrant altyapısı olmadan çalışan bir **yerel PDF modu**
-içerir. Canlı Vercel sürümünde yüklenen PDF, PDF.js ile doğrudan tarayıcıda okunur;
-sayfalara göre parçalanır ve soruya en yakın gerçek bölümler kaynaklarıyla gösterilir.
-Dosya cihazdan dışarı gönderilmez ve sayfa yenilendiğinde yerel oturum temizlenir.
-Embedding ve üretken model kullanan tam RAG davranışı için Docker kurulumu kullanılmalıdır.
+Repository ayrıca ağır Ollama/Qdrant altyapısı olmadan çalışan bir **Vercel vitrin modu**
+içerir. Canlı sürümde yüklenen PDF, PDF.js ile doğrudan tarayıcıda okunur ve
+sayfalara göre parçalanır. PDF dosyasının kendisi sunucuya yüklenmez; soruyla ilgili
+metin parçaları, sunucu tarafındaki anahtar ile OpenAI Responses API'ye gönderilerek
+Türkçe ve kaynaklı cevap üretilir. Yapay zekâ servisi kullanılamazsa kaynaklara dayalı
+yerel cevap motoru otomatik olarak devreye girer. Sayfa yenilendiğinde yerel oturum temizlenir.
+
+Tüm belge içeriğinin ve modelin makinede kalması gereken senaryolarda Docker ile çalışan
+Ollama + Qdrant kurulumu kullanılmalıdır.
 
 Canlı demo: <https://smartdocs-ai-henna.vercel.app>
 
 ```text
-Canlı vitrin: PDF → tarayıcıda metin çıkarma → yerel parçalara ayırma
-             → soru eşleştirme → sayfa kaynaklı çıkarımsal cevap
+Canlı vitrin: PDF → tarayıcıda metin çıkarma → ilgili parçaları seçme
+             → Vercel Function → OpenAI Responses API → kaynaklı cevap
 
 Tam kurulum:
 PDF → metin çıkarma → parçalara ayırma → Ollama embedding

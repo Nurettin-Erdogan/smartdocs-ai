@@ -2,10 +2,11 @@
 
 Bu belge Docker Compose ile tek makine kurulumu ve üretime geçerken gereken operasyonel ayarları anlatır.
 
-## Vercel yerel PDF vitrini
+## Vercel yapay zekâ destekli PDF vitrini
 
-Kök dizindeki `vercel.json`, React arayüzünü tarayıcı içinde PDF işleyen demo modunda
-yayımlar. Bu dağıtım PostgreSQL, Qdrant veya Ollama gerektirmez:
+Kök dizindeki `vercel.json`, React arayüzünü tarayıcı içinde PDF işleyen ve cevapları
+sunucu tarafındaki OpenAI bağlantısıyla üreten demo modunda yayımlar. Bu dağıtım
+PostgreSQL, Qdrant veya Ollama gerektirmez:
 
 Canlı adres: <https://smartdocs-ai-henna.vercel.app>
 
@@ -15,11 +16,24 @@ npm ci
 npm run build:demo
 ```
 
-Demo modunda PDF.js dosyanın metin katmanını tarayıcı içinde okur, sayfa bazlı parçalar
-oluşturur ve soruya en yakın gerçek bölümleri kaynaklarıyla gösterir. Dosya sunucuya
-gönderilmez; belge, indeks ve sohbet yalnızca sayfa açıkken bellekte tutulur. Taranmış
-görüntü PDF’leri OCR olmadan okunamaz. Kalıcı veri, embedding tabanlı anlamsal arama ve
-üretken cevaplar için aşağıdaki Docker kurulumunu kullanın.
+Vercel proje ayarlarında Production, Preview ve Development ortamları için şu değerleri
+tanımlayın:
+
+```dotenv
+OPENAI_API_KEY=sk-...
+OPENAI_MODEL=gpt-5.6-luna
+```
+
+`OPENAI_API_KEY` yalnızca `api/answer.ts` sunucu fonksiyonunda okunur; `VITE_` öneki
+kullanılmamalı ve anahtar kaynak koda yazılmamalıdır. Ortam değişkeni eklendikten sonra
+yeni bir dağıtım başlatılmalıdır.
+
+Demo modunda PDF.js dosyanın metin katmanını tarayıcı içinde okur ve sayfa bazlı parçalar
+oluşturur. PDF dosyası sunucuya gönderilmez; yalnızca soruya cevap vermek için seçilen
+metin bölümleri OpenAI API'ye iletilir. API kullanılamazsa yerel, kaynaklı cevap motoruna
+geri dönülür. Belge, indeks ve sohbet yalnızca sayfa açıkken bellekte tutulur. Taranmış
+görüntü PDF’leri OCR olmadan okunamaz. Tamamen yerel ve kalıcı RAG için aşağıdaki Docker
+kurulumunu kullanın.
 
 ## Servisler
 

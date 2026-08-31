@@ -146,4 +146,74 @@ describe('portfolio demo API', () => {
     expect(result.answer).toContain('Merhaba');
     expect(result.sources).toEqual([]);
   });
+
+  it('uses the AI endpoint with broad document context and conversation history', async () => {
+    const generateAiAnswer = vi.fn().mockResolvedValue(
+      'Öğrencinin adı Nurettin Erdoğan. (Sınava Giriş Belgesi, s. 1)'
+    );
+    const demoApi = createDemoApi({
+      generateAiAnswer,
+      extractPdf: async () => [
+        {
+          chunkIndex: 0,
+          pageNumber: 1,
+          content: 'Aday Adı Soyadı: Nurettin Erdoğan. Sınav yeri İstanbul.'
+        },
+        {
+          chunkIndex: 1,
+          pageNumber: 1,
+          content: 'Öğrenci kimlik kartları ve sınava giriş belgesi yanında bulunmalıdır.'
+        }
+      ]
+    });
+    const uploaded = await demoApi.uploadDocument(
+      new File(['demo'], 'Sınava Giriş Belgesi.pdf', { type: 'application/pdf' })
+    );
+    const first = await demoApi.askChat({
+      question: 'Bu ne belgesi?',
+      documentIds: [uploaded.id]
+    });
+    const result = await demoApi.askChat({
+      question: 'öğrenci ismi ne',
+      conversationId: first.conversationId,
+      documentIds: [uploaded.id]
+    });
+
+    expect(result.mode).toBe('ai');
+    expect(result.answer).toContain('Nurettin Erdoğan');
+    expect(generateAiAnswer).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        question: 'öğrenci ismi ne',
+        sources: expect.arrayContaining([
+          expect.objectContaining({ content: expect.stringContaining('Nurettin Erdoğan') })
+        ]),
+        history: expect.arrayContaining([
+          expect.objectContaining({ question: 'Bu ne belgesi?' })
+        ])
+      }),
+      undefined
+    );
+  });
+
+  it('falls back to the grounded local answer when the AI endpoint is unavailable', async () => {
+    const demoApi = createDemoApi({
+      generateAiAnswer: vi.fn().mockResolvedValue(null),
+      extractPdf: async () => [{
+        chunkIndex: 0,
+        pageNumber: 1,
+        content: 'Proje teslim tarihi 18 Eylül 2026 olarak belirlenmiştir.'
+      }]
+    });
+    const uploaded = await demoApi.uploadDocument(
+      new File(['demo'], 'proje.pdf', { type: 'application/pdf' })
+    );
+
+    const result = await demoApi.askChat({
+      question: 'Teslim tarihi ne zaman?',
+      documentIds: [uploaded.id]
+    });
+
+    expect(result.mode).toBe('local');
+    expect(result.answer).toContain('18 Eylül 2026');
+  });
 });

@@ -101,7 +101,19 @@ type StoredChunk = LocalPdfChunk & {
 
 type DemoApiOptions = {
   extractPdf?: (file: File) => Promise<LocalPdfChunk[]>;
+  generateAiAnswer?: AiAnswerGenerator | null;
 };
+
+type AiAnswerRequest = {
+  question: string;
+  sources: ChatSource[];
+  history: Array<{ question: string; answer: string }>;
+};
+
+type AiAnswerGenerator = (
+  request: AiAnswerRequest,
+  signal?: AbortSignal
+) => Promise<string | null>;
 
 type QuestionIntent =
   | 'document-identity'
@@ -252,6 +264,21 @@ const profileFor = (document: DocumentItem, chunks: StoredChunk[]): DocumentProf
   return DOCUMENT_PROFILES.find(({ patterns }) => patterns.some((pattern) => pattern.test(searchable)))?.profile ?? null;
 };
 
+const generateRemoteAiAnswer: AiAnswerGenerator = async (request, signal) => {
+  const response = await fetch('/api/answer', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(request),
+    signal
+  });
+  if (!response.ok) return null;
+
+  const payload = await response.json() as { answer?: unknown };
+  return typeof payload.answer === 'string' && payload.answer.trim()
+    ? payload.answer.trim()
+    : null;
+};
+
 const questionTerms = (question: string) => [...new Set(
   normalize(question)
     .split(' ')
@@ -387,6 +414,9 @@ export function createDemoApi(options: DemoApiOptions = {}) {
   ]);
   const uploadedFiles = new Map<number, File>();
   const pdfExtractor = options.extractPdf ?? extractPdfChunks;
+  const aiAnswerGenerator = options.generateAiAnswer === undefined
+    ? (typeof globalThis.location === 'undefined' ? null : generateRemoteAiAnswer)
+    : options.generateAiAnswer;
 
   const history = (): ChatHistorySummary[] =>
     [...conversations.values()]
@@ -454,6 +484,48 @@ export function createDemoApi(options: DemoApiOptions = {}) {
     }));
 
     return { document, profile, sources };
+  };
+
+  const aiContextFor = (question: string, documentIds?: number[]) => {
+    const selectedIds = documentIds?.length ? new Set(documentIds) : null;
+    const readyIds = new Set(documents
+      .filter((document) => document.indexingStatus === 'Ready')
+      .map((document) => document.id));
+    const terms = questionTerms(question);
+    const candidates = storedChunks
+      .filter((chunk) => readyIds.has(chunk.documentId))
+      .filter((chunk) => !selectedIds || selectedIds.has(chunk.documentId));
+    const ranked = candidates
+      .map((chunk) => ({ chunk, rawScore: scoreChunk(chunk, terms) }))
+      .sort((left, right) => right.rawScore - left.rawScore || left.chunk.pageNumber - right.chunk.pageNumber || left.chunk.chunkIndex - right.chunk.chunkIndex);
+    const firstChunks = [...candidates]
+      .sort((left, right) => left.pageNumber - right.pageNumber || left.chunkIndex - right.chunkIndex)
+      .filter((chunk, index, all) => all.findIndex((item) => item.documentId === chunk.documentId) === index);
+    const ordered = [
+      ...ranked.filter((item) => item.rawScore > 0).map((item) => item.chunk),
+      ...firstChunks,
+      ...ranked.map((item) => item.chunk)
+    ];
+
+    let characterCount = 0;
+    return ordered
+      .filter((chunk, index, all) => all.findIndex((item) =>
+        item.documentId === chunk.documentId && item.chunkIndex === chunk.chunkIndex) === index)
+      .flatMap((chunk) => {
+        if (characterCount >= 24_000) return [];
+        const content = chunk.content.slice(0, 24_000 - characterCount);
+        characterCount += content.length;
+        const rawScore = scoreChunk(chunk, terms);
+        return [{
+          documentId: chunk.documentId,
+          title: chunk.title,
+          chunkIndex: chunk.chunkIndex,
+          pageNumber: chunk.pageNumber,
+          score: rawScore > 0 ? Math.min(0.99, 0.7 + rawScore * 0.1) : 0.5,
+          content
+        } satisfies ChatSource];
+      })
+      .slice(0, 16);
   };
 
   return {
@@ -531,12 +603,39 @@ export function createDemoApi(options: DemoApiOptions = {}) {
       const overview = needsDocument ? overviewFor(body.documentIds) : null;
       const retrieval = isOverviewIntent ? null : sourcesFor(body.question, body.documentIds);
       const sources = overview?.sources ?? retrieval?.sources ?? [];
-      const answer = isOverviewIntent
+      const localAnswer = isOverviewIntent
         ? overviewAnswer(intent, overview?.document, overview?.profile ?? null, sources)
         : answerFor(body.question, sources, retrieval?.hasDirectMatch ?? false);
+      const aiSources = aiContextFor(body.question, body.documentIds);
+      const previousConversation = body.conversationId
+        ? conversations.get(body.conversationId)
+        : undefined;
+      let answer = localAnswer;
+      let responseSources = sources;
+      let mode: 'ai' | 'local' = 'local';
+
+      if (aiAnswerGenerator && aiSources.length > 0) {
+        try {
+          const generatedAnswer = await aiAnswerGenerator({
+            question: body.question,
+            sources: aiSources,
+            history: previousConversation?.messages.slice(-4).map((message) => ({
+              question: message.question,
+              answer: message.answer
+            })) ?? []
+          }, callbacks.signal);
+          if (generatedAnswer) {
+            answer = generatedAnswer;
+            responseSources = aiSources.slice(0, 6);
+            mode = 'ai';
+          }
+        } catch (error) {
+          if (callbacks.signal?.aborted) throw error;
+        }
+      }
       const chunks = answer.match(/.{1,34}(?:\s|$)/g) ?? [answer];
 
-      callbacks.onStart?.({ conversationId, sources });
+      callbacks.onStart?.({ conversationId, sources: responseSources });
       for (const chunk of chunks) {
         await wait(28, callbacks.signal);
         callbacks.onChunk?.(chunk);
@@ -555,7 +654,7 @@ export function createDemoApi(options: DemoApiOptions = {}) {
       });
       conversations.set(conversationId, conversation);
 
-      return { conversationId, answer, sources };
+      return { conversationId, answer, sources: responseSources, mode };
     },
     chatHistory: async (signal?: AbortSignal) => {
       await wait(70, signal);

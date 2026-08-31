@@ -57,6 +57,7 @@ export type ChatResponse = {
   conversationId: number;
   answer: string;
   sources: ChatSource[];
+  mode?: 'ai' | 'local';
 };
 
 export type ChatRequest = {

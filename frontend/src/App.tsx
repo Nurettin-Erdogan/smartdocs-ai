@@ -252,7 +252,7 @@ function App() {
     });
     setNotification({
       kind: 'info',
-      message: 'Yerel PDF modu açıldı. Kendi PDF’ni ekleyebilirsin; dosya cihazından dışarı çıkmaz.'
+      message: 'Yapay zekâ destekli PDF alanı açıldı. Dosya cihazında okunur; yalnızca ilgili metin bölümleri cevap için gönderilir.'
     });
   };
 
@@ -444,7 +444,12 @@ function App() {
       setSelectedConversationId(result.conversationId);
       setSources(result.sources);
       setQuestion('');
-      setNotification({ kind: 'success', message: 'Cevap hazır.' });
+      setNotification({
+        kind: result.mode === 'local' && isDemoMode ? 'info' : 'success',
+        message: result.mode === 'local' && isDemoMode
+          ? 'Yapay zekâ servisine ulaşılamadı; kaynaklara dayalı yerel cevap gösterildi.'
+          : 'Yapay zekâ cevabı hazır.'
+      });
 
       await refreshData(false);
       try {
@@ -620,12 +625,12 @@ function App() {
                 <div className="demo-divider"><span>veya</span></div>
                 <button className="demo-btn" type="button" onClick={handleOpenDemo}>
                   <span className="demo-btn-icon">▶</span>
-                  <span><strong>Kendi PDF’inle dene</strong><small>Kayıt gerekmez · dosya cihazında işlenir</small></span>
+                  <span><strong>Kendi PDF’inle dene</strong><small>Kayıt gerekmez · yapay zekâ destekli</small></span>
                 </button>
               </div>
             )}
 
-            <p className="auth-security"><span>⌁</span> Demo modunda PDF tarayıcıda okunur; sunucuya yüklenmez.</p>
+            <p className="auth-security"><span>⌁</span> PDF cihazında okunur; yalnızca ilgili metin parçaları cevap için gönderilir.</p>
           </section>
         </main>
 
@@ -646,7 +651,7 @@ function App() {
       <aside className="sidebar panel">
         <div>
           <div className="brand-pill"><span className="brand-mark">✦</span> SmartDocs AI</div>
-          {isDemoMode && <div className="demo-mode-badge"><span /> Yerel PDF modu</div>}
+          {isDemoMode && <div className="demo-mode-badge"><span /> Yapay zekâ destekli</div>}
           <h2>{user.fullName}</h2>
           <p>{user.email}</p>
           <div className="role-tag">{user.role ?? 'Kullanıcı'}</div>
