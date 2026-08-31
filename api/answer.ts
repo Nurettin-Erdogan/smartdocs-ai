@@ -169,7 +169,7 @@ export default async function handler(request: ApiRequest, response: ApiResponse
   }
 
   try {
-    const model = process.env.GEMINI_MODEL?.trim() || 'gemini-2.5-flash-lite';
+    const model = process.env.GEMINI_MODEL?.trim() || 'gemini-3.5-flash-lite';
     const upstream = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
       {
@@ -196,8 +196,7 @@ export default async function handler(request: ApiRequest, response: ApiResponse
             parts: [{ text: promptFor(body) }]
           }],
           generationConfig: {
-            maxOutputTokens: 600,
-            thinkingConfig: { thinkingBudget: 0 }
+            maxOutputTokens: 600
           }
         })
       }

@@ -34,7 +34,7 @@ describe('Vercel AI answer endpoint', () => {
 
   it('keeps the API key server-side and returns the grounded model answer', async () => {
     vi.stubEnv('GEMINI_API_KEY', 'test-secret-key');
-    vi.stubEnv('GEMINI_MODEL', 'gemini-2.5-flash-lite');
+    vi.stubEnv('GEMINI_MODEL', 'gemini-3.5-flash-lite');
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({
       candidates: [{ content: { parts: [{ text: 'Öğrencinin adı Nurettin Erdoğan. (Belge, s. 1)' }] } }]
     }), { status: 200, headers: { 'Content-Type': 'application/json' } }));
@@ -52,13 +52,12 @@ describe('Vercel AI answer endpoint', () => {
     expect(response.statusCode).toBe(200);
     expect(response.body).toEqual({ answer: expect.stringContaining('Nurettin Erdoğan') });
     const [url, init] = fetchMock.mock.calls[0] ?? [];
-    expect(url).toBe('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent');
+    expect(url).toBe('https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent');
     expect((init?.headers as Record<string, string>)['x-goog-api-key']).toBe('test-secret-key');
     const upstreamBody = JSON.parse(String(init?.body)) as Record<string, unknown>;
     expect(upstreamBody).toMatchObject({
       generationConfig: {
-        maxOutputTokens: 600,
-        thinkingConfig: { thinkingBudget: 0 }
+        maxOutputTokens: 600
       }
     });
     expect(JSON.stringify(upstreamBody.contents)).toContain('Nurettin Erdoğan');

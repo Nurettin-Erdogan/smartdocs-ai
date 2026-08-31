@@ -21,7 +21,7 @@ tanımlayın:
 
 ```dotenv
 GEMINI_API_KEY=...
-GEMINI_MODEL=gemini-2.5-flash-lite
+GEMINI_MODEL=gemini-3.5-flash-lite
 ```
 
 `GEMINI_API_KEY` yalnızca `api/answer.ts` sunucu fonksiyonunda okunur; `VITE_` öneki
