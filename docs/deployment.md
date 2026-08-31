@@ -5,7 +5,7 @@ Bu belge Docker Compose ile tek makine kurulumu ve üretime geçerken gereken op
 ## Vercel yapay zekâ destekli PDF vitrini
 
 Kök dizindeki `vercel.json`, React arayüzünü tarayıcı içinde PDF işleyen ve cevapları
-sunucu tarafındaki OpenAI bağlantısıyla üreten demo modunda yayımlar. Bu dağıtım
+sunucu tarafındaki Gemini bağlantısıyla üreten demo modunda yayımlar. Bu dağıtım
 PostgreSQL, Qdrant veya Ollama gerektirmez:
 
 Canlı adres: <https://smartdocs-ai-henna.vercel.app>
@@ -20,17 +20,17 @@ Vercel proje ayarlarında Production, Preview ve Development ortamları için ş
 tanımlayın:
 
 ```dotenv
-OPENAI_API_KEY=sk-...
-OPENAI_MODEL=gpt-5.6-luna
+GEMINI_API_KEY=...
+GEMINI_MODEL=gemini-2.5-flash-lite
 ```
 
-`OPENAI_API_KEY` yalnızca `api/answer.ts` sunucu fonksiyonunda okunur; `VITE_` öneki
+`GEMINI_API_KEY` yalnızca `api/answer.ts` sunucu fonksiyonunda okunur; `VITE_` öneki
 kullanılmamalı ve anahtar kaynak koda yazılmamalıdır. Ortam değişkeni eklendikten sonra
 yeni bir dağıtım başlatılmalıdır.
 
 Demo modunda PDF.js dosyanın metin katmanını tarayıcı içinde okur ve sayfa bazlı parçalar
 oluşturur. PDF dosyası sunucuya gönderilmez; yalnızca soruya cevap vermek için seçilen
-metin bölümleri OpenAI API'ye iletilir. API kullanılamazsa yerel, kaynaklı cevap motoruna
+metin bölümleri Gemini API'ye iletilir. API kullanılamazsa yerel, kaynaklı cevap motoruna
 geri dönülür. Belge, indeks ve sohbet yalnızca sayfa açıkken bellekte tutulur. Taranmış
 görüntü PDF’leri OCR olmadan okunamaz. Tamamen yerel ve kalıcı RAG için aşağıdaki Docker
 kurulumunu kullanın.

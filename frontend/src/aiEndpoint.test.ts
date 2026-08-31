@@ -33,13 +33,10 @@ describe('Vercel AI answer endpoint', () => {
   });
 
   it('keeps the API key server-side and returns the grounded model answer', async () => {
-    vi.stubEnv('OPENAI_API_KEY', 'test-secret-key');
-    vi.stubEnv('OPENAI_MODEL', 'gpt-5.6-luna');
+    vi.stubEnv('GEMINI_API_KEY', 'test-secret-key');
+    vi.stubEnv('GEMINI_MODEL', 'gemini-2.5-flash-lite');
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({
-      output: [{
-        type: 'message',
-        content: [{ type: 'output_text', text: 'Öğrencinin adı Nurettin Erdoğan. (Belge, s. 1)' }]
-      }]
+      candidates: [{ content: { parts: [{ text: 'Öğrencinin adı Nurettin Erdoğan. (Belge, s. 1)' }] } }]
     }), { status: 200, headers: { 'Content-Type': 'application/json' } }));
     const response = responseForTest();
 
@@ -55,19 +52,20 @@ describe('Vercel AI answer endpoint', () => {
     expect(response.statusCode).toBe(200);
     expect(response.body).toEqual({ answer: expect.stringContaining('Nurettin Erdoğan') });
     const [url, init] = fetchMock.mock.calls[0] ?? [];
-    expect(url).toBe('https://api.openai.com/v1/responses');
-    expect((init?.headers as Record<string, string>).Authorization).toBe('Bearer test-secret-key');
+    expect(url).toBe('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent');
+    expect((init?.headers as Record<string, string>)['x-goog-api-key']).toBe('test-secret-key');
     const upstreamBody = JSON.parse(String(init?.body)) as Record<string, unknown>;
     expect(upstreamBody).toMatchObject({
-      model: 'gpt-5.6-luna',
-      store: false,
-      max_output_tokens: 600
+      generationConfig: {
+        maxOutputTokens: 600,
+        thinkingConfig: { thinkingBudget: 0 }
+      }
     });
-    expect(String(upstreamBody.input)).toContain('Nurettin Erdoğan');
+    expect(JSON.stringify(upstreamBody.contents)).toContain('Nurettin Erdoğan');
   });
 
-  it('reports an unconfigured server without calling OpenAI', async () => {
-    vi.stubEnv('OPENAI_API_KEY', '');
+  it('reports an unconfigured server without calling Gemini', async () => {
+    vi.stubEnv('GEMINI_API_KEY', '');
     const fetchMock = vi.spyOn(globalThis, 'fetch');
     const response = responseForTest();
 

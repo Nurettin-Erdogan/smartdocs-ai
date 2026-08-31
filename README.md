@@ -45,7 +45,7 @@ Bu proje; RAG akışını bir demo çağrısından çıkarıp kimlik doğrulama,
 Repository ayrıca ağır Ollama/Qdrant altyapısı olmadan çalışan bir **Vercel vitrin modu**
 içerir. Canlı sürümde yüklenen PDF, PDF.js ile doğrudan tarayıcıda okunur ve
 sayfalara göre parçalanır. PDF dosyasının kendisi sunucuya yüklenmez; soruyla ilgili
-metin parçaları, sunucu tarafındaki anahtar ile OpenAI Responses API'ye gönderilerek
+metin parçaları, sunucu tarafındaki anahtar ile Google Gemini API'ye gönderilerek
 Türkçe ve kaynaklı cevap üretilir. Yapay zekâ servisi kullanılamazsa kaynaklara dayalı
 yerel cevap motoru otomatik olarak devreye girer. Sayfa yenilendiğinde yerel oturum temizlenir.
 
@@ -56,7 +56,7 @@ Canlı demo: <https://smartdocs-ai-henna.vercel.app>
 
 ```text
 Canlı vitrin: PDF → tarayıcıda metin çıkarma → ilgili parçaları seçme
-             → Vercel Function → OpenAI Responses API → kaynaklı cevap
+             → Vercel Function → Google Gemini API → kaynaklı cevap
 
 Tam kurulum:
 PDF → metin çıkarma → parçalara ayırma → Ollama embedding
