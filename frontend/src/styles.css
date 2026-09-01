@@ -50,6 +50,25 @@ body::after {
   mask-image: linear-gradient(to bottom, #000 0%, rgba(0,0,0,.72) 58%, transparent 100%);
 }
 #root { position: relative; isolation: isolate; }
+
+/* Çalışma alanını açık renkli bir ürün yüzeyi olarak koyu vitrin zemininden ayırır. */
+body:has(.app-shell) { background:#071527; }
+body:has(.app-shell)::before {
+  background:
+    radial-gradient(circle at 7% 16%,rgba(45,100,232,.38) 0,transparent 25%),
+    radial-gradient(circle at 94% 13%,rgba(240,156,72,.24) 0,transparent 22%),
+    radial-gradient(circle at 84% 88%,rgba(56,190,151,.19) 0,transparent 26%),
+    linear-gradient(145deg,#061223 0%,#0a1e38 48%,#071827 100%);
+}
+body:has(.app-shell)::after {
+  opacity:.62;
+  background-image:
+    linear-gradient(rgba(143,177,231,.09) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(143,177,231,.09) 1px,transparent 1px),
+    radial-gradient(circle at 10% 34%,rgba(112,158,244,.55) 0 2px,transparent 3px),
+    radial-gradient(circle at 91% 64%,rgba(91,222,181,.36) 0 2px,transparent 3px);
+  mask-image:linear-gradient(to bottom,#000 0%,rgba(0,0,0,.9) 72%,transparent 100%);
+}
 button, input, textarea { font: inherit; }
 button { cursor: pointer; }
 button:disabled, input:disabled, textarea:disabled { cursor: not-allowed; opacity: .55; }
@@ -105,11 +124,11 @@ label { display:grid; gap:.46rem; color:var(--ink-soft); font-size:.85rem; font-
   position:absolute;
   z-index:-1;
   inset:clamp(.35rem,1.25vw,.9rem);
-  border:1px solid rgba(183,201,232,.58);
+  border:1px solid rgba(255,255,255,.3);
   border-radius:32px;
-  background:linear-gradient(145deg,rgba(255,255,255,.42),rgba(244,248,255,.24));
-  box-shadow:0 38px 100px rgba(30,55,106,.13),inset 0 1px 0 rgba(255,255,255,.86);
-  backdrop-filter:blur(8px);
+  background:linear-gradient(145deg,rgba(247,250,255,.97),rgba(232,240,250,.94));
+  box-shadow:0 44px 120px rgba(0,8,25,.48),inset 0 1px 0 rgba(255,255,255,.95);
+  backdrop-filter:blur(12px);
   pointer-events:none;
 }
 .app-shell::after {
@@ -120,9 +139,9 @@ label { display:grid; gap:.46rem; color:var(--ink-soft); font-size:.85rem; font-
   right:-5.5rem;
   width:12rem;
   height:12rem;
-  border:1px solid rgba(40,100,236,.13);
+  border:1px solid rgba(111,157,243,.28);
   border-radius:50%;
-  box-shadow:0 0 0 2.6rem rgba(40,100,236,.035),0 0 0 5.2rem rgba(40,100,236,.02);
+  box-shadow:0 0 0 2.6rem rgba(67,124,232,.07),0 0 0 5.2rem rgba(67,124,232,.035);
   pointer-events:none;
 }
 .sidebar,.documents-panel,.chat-panel { display:grid; gap:1.1rem; }
@@ -209,6 +228,34 @@ button:focus-visible,.file-dropzone:focus-within{outline:3px solid rgba(40,100,2
 
 @media (max-width:1100px){body::after{opacity:.28}.app-shell::after{display:none}.app-shell::before{border-radius:24px}}
 @media (max-width:680px){body::after{background-size:56px 56px,56px 56px,150px 150px,180px 180px}.app-shell::before{inset:.35rem;border-radius:20px}}
+@media (min-width:1780px){
+  body:has(.app-shell) #root::before,
+  body:has(.app-shell) #root::after{
+    position:fixed;
+    z-index:2;
+    top:50%;
+    padding:.9rem .55rem;
+    color:rgba(218,230,251,.66);
+    font-family:Consolas,"Courier New",monospace;
+    font-size:.62rem;
+    font-weight:700;
+    letter-spacing:.22em;
+    writing-mode:vertical-rl;
+    pointer-events:none;
+  }
+  body:has(.app-shell) #root::before{
+    content:'SMARTDOCS AI';
+    left:2rem;
+    transform:translateY(-50%) rotate(180deg);
+    border-left:1px solid rgba(126,164,228,.24);
+  }
+  body:has(.app-shell) #root::after{
+    content:'KAYNAKLI BELGE ZEKÂSI';
+    right:2rem;
+    transform:translateY(-50%);
+    border-left:1px solid rgba(126,164,228,.24);
+  }
+}
 
 .status-extracting,.status-indexing{color:#1e63c8;background:#e9f2ff}
 .status-retrywaiting{color:#94620a;background:#fff6dd}
