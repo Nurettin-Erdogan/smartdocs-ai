@@ -450,9 +450,9 @@ function App() {
       setVerification(result.verification ?? null);
       setQuestion('');
       setNotification({
-        kind: result.mode === 'local' && isDemoMode ? 'info' : 'success',
+        kind: 'success',
         message: result.mode === 'local' && isDemoMode
-          ? 'Yapay zekâ servisine ulaşılamadı; kaynaklara dayalı yerel cevap gösterildi.'
+          ? 'Kaynaklara dayalı yanıt hazır.'
           : 'Yapay zekâ cevabı hazır.'
       });
 

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createDemoApi } from './demo';
+import { createDemoApi, generateRemoteAiAnswer } from './demo';
 
 describe('portfolio demo API', () => {
   it('opens with an empty document library and conversation history', async () => {
@@ -241,5 +241,29 @@ describe('portfolio demo API', () => {
 
     expect(result.mode).toBe('local');
     expect(result.answer).toContain('18 Eylül 2026');
+  });
+
+  it('retries a temporary AI endpoint failure before using the local fallback', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(new Response(null, { status: 503 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        answer: 'Proje kodu ALFA-42 olarak belirlenmiştir.',
+        verification: { status: 'verified', score: 100, supportedClaims: 1, totalClaims: 1, summary: 'Doğrulandı.', claims: [] }
+      }), { status: 200, headers: { 'Content-Type': 'application/json' } }));
+    const result = await generateRemoteAiAnswer({
+      question: 'Proje kodu nedir?',
+      sources: [{
+        documentId: 1,
+        title: 'Proje',
+        pageNumber: 1,
+        chunkIndex: 0,
+        score: 1,
+        content: 'Proje kodu ALFA-42 olarak belirlenmiştir.'
+      }],
+      history: []
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(result).toMatchObject({ answer: expect.stringContaining('ALFA-42') });
   });
 });

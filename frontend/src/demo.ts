@@ -223,25 +223,46 @@ const profileFor = (document: DocumentItem, chunks: StoredChunk[]): DocumentProf
   return DOCUMENT_PROFILES.find(({ patterns }) => patterns.some((pattern) => pattern.test(searchable)))?.profile ?? null;
 };
 
-const generateRemoteAiAnswer: AiAnswerGenerator = async (request, signal) => {
-  const response = await fetch('/api/answer', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(request),
-    signal
-  });
-  if (!response.ok) return null;
+export const generateRemoteAiAnswer: AiAnswerGenerator = async (request, signal) => {
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      const response = await fetch('/api/answer', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(request),
+        signal
+      });
 
-  const payload = await response.json() as {
-    answer?: unknown;
-    verification?: unknown;
-  };
-  if (typeof payload.answer !== 'string' || !payload.answer.trim()) return null;
+      if (!response.ok) {
+        const isTemporaryFailure = response.status === 429 || response.status >= 500;
+        if (isTemporaryFailure && attempt === 0) {
+          await wait(450, signal);
+          continue;
+        }
+        return null;
+      }
 
-  return {
-    answer: payload.answer.trim(),
-    verification: payload.verification as AnswerVerification | undefined
-  };
+      const payload = await response.json() as {
+        answer?: unknown;
+        verification?: unknown;
+      };
+      if (typeof payload.answer !== 'string' || !payload.answer.trim()) return null;
+
+      return {
+        answer: payload.answer.trim(),
+        verification: payload.verification as AnswerVerification | undefined
+      };
+    } catch (error) {
+      if (signal?.aborted) throw error;
+      if (attempt === 0) {
+        await wait(450, signal);
+        continue;
+      }
+      return null;
+    }
+  }
+
+  return null;
 };
 
 const questionTerms = (question: string) => [...new Set(
