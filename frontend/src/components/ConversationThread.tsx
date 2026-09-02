@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import type { ChatConversation } from '../api';
 
 type ConversationThreadProps = {
@@ -17,13 +18,47 @@ export function ConversationThread({
   isLoading,
   isNewConversation
 }: ConversationThreadProps) {
+  const threadRef = useRef<HTMLDivElement>(null);
+  const shouldFollowLatestRef = useRef(true);
+  const previousConversationIdRef = useRef<number | null>(null);
+  const previousMessageCountRef = useRef(0);
+  const messages = conversation?.messages ?? [];
+  const latestMessage = messages[messages.length - 1];
+
+  useEffect(() => {
+    const conversationChanged = previousConversationIdRef.current !== (conversation?.conversationId ?? null);
+    const newMessageAdded = messages.length > previousMessageCountRef.current;
+
+    if (conversationChanged || newMessageAdded) {
+      shouldFollowLatestRef.current = true;
+    }
+
+    previousConversationIdRef.current = conversation?.conversationId ?? null;
+    previousMessageCountRef.current = messages.length;
+
+    if (!shouldFollowLatestRef.current) return;
+
+    const frame = window.requestAnimationFrame(() => {
+      const thread = threadRef.current;
+      if (thread) thread.scrollTop = thread.scrollHeight;
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [conversation?.conversationId, isLoading, latestMessage?.answer, latestMessage?.id, messages.length]);
+
   return (
     <div
+      ref={threadRef}
       className="conversation-thread"
       role="log"
       aria-live="polite"
       aria-busy={isLoading}
       aria-label="Sohbet mesajları"
+      onScroll={(event) => {
+        const thread = event.currentTarget;
+        const distanceFromBottom = thread.scrollHeight - thread.scrollTop - thread.clientHeight;
+        shouldFollowLatestRef.current = distanceFromBottom < 72;
+      }}
     >
       {isLoading && <p className="muted conversation-empty">Sohbet yükleniyor...</p>}
 
