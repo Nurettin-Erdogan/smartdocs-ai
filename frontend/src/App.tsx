@@ -1016,42 +1016,6 @@ function App() {
             </div>
           </form>
 
-          <div className="sources-box">
-            <div className="section-head compact">
-              <h4>Son cevabın kaynakları</h4>
-              <span>{sources.length}</span>
-            </div>
-            {sources.length === 0 && (
-              <p className="muted">
-                Yeni bir cevap üretildiğinde kullanılan belge parçaları burada görünür.
-              </p>
-            )}
-            <div className="source-list">
-              {sources.map((source) => (
-                <article
-                  key={`${source.documentId}-${source.chunkIndex}-${source.pageNumber}`}
-                  className="source-card"
-                >
-                  <strong>{source.title} · Sayfa {source.pageNumber}</strong>
-                  <p>{source.content}</p>
-                  <div className="source-card-footer">
-                    <small>Parça {source.chunkIndex} · Skor {source.score.toFixed(3)}</small>
-                    <button
-                      type="button"
-                      onClick={() => setPreviewTarget({
-                        documentId: source.documentId,
-                        title: source.title,
-                        pageNumber: source.pageNumber,
-                        content: source.content
-                      })}
-                    >
-                      PDF’de aç →
-                    </button>
-                  </div>
-                </article>
-              ))}
-            </div>
-          </div>
         </section>
       </main>
 
