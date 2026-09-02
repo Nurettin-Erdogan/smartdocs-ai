@@ -32,7 +32,6 @@ import {
   type AppSession,
   type SessionUser
 } from './session';
-import { reviewModesFor } from './reviewModes';
 
 type AuthMode = 'login' | 'register';
 type DocumentAction = { id: number; kind: 'delete' | 'reindex' } | null;
@@ -240,10 +239,6 @@ function App() {
   const readyDocuments = useMemo(
     () => documents.filter((document) => document.indexingStatus === 'Ready'),
     [documents]
-  );
-  const reviewModes = useMemo(
-    () => reviewModesFor(selectedDocumentIds.length),
-    [selectedDocumentIds.length]
   );
 
   const persistAuth = (token: string, user: SessionUser) => {
@@ -491,11 +486,6 @@ function App() {
   const handleAsk = (event: FormEvent) => {
     event.preventDefault();
     void askQuestion(question);
-  };
-
-  const handleReviewMode = (prompt: string) => {
-    setQuestion(prompt);
-    void askQuestion(prompt);
   };
 
   const handleStopAnswer = () => {
@@ -934,35 +924,6 @@ function App() {
               })}
             </div>
           </div>
-
-          {selectedDocumentIds.length > 0 && (
-            <section className="review-modes" aria-labelledby="review-modes-title">
-              <div className="review-modes-intro">
-                <div>
-                  <span className="eyebrow">KANITLI İNCELEME MODLARI</span>
-                  <h4 id="review-modes-title">Belgeyi sadece arama, denetle</h4>
-                  <p>Tek tıkla yapılandırılmış analiz başlat; her bulguyu sayfa ve alıntı kanıtıyla kontrol et.</p>
-                </div>
-                <span className="review-shield" aria-hidden="true">✓</span>
-              </div>
-              <div className="review-mode-grid">
-                {reviewModes.map((mode) => (
-                  <button
-                    key={mode.id}
-                    type="button"
-                    className="review-mode-card"
-                    onClick={() => handleReviewMode(mode.prompt)}
-                    disabled={asking}
-                  >
-                    <span>{mode.icon}</span>
-                    <strong>{mode.title}</strong>
-                    <small>{mode.description}</small>
-                    <b aria-hidden="true">→</b>
-                  </button>
-                ))}
-              </div>
-            </section>
-          )}
 
           <ConversationThread
             conversation={selectedConversation}
