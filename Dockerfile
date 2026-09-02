@@ -7,6 +7,9 @@ COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci
 
 COPY frontend/ ./
+# Frontend uç nokta testleri kökteki Vercel fonksiyonunu içe aktarır.
+# TypeScript'in çözümleyebilmesi için aynı kaynak düzenini derleme aşamasında koru.
+COPY api/ /src/api/
 RUN npm run typecheck && npm run build
 
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS backend-build
