@@ -32,6 +32,7 @@ import {
   type AppSession,
   type SessionUser
 } from './session';
+import { reviewModesFor } from './reviewModes';
 
 type AuthMode = 'login' | 'register';
 type DocumentAction = { id: number; kind: 'delete' | 'reindex' } | null;
@@ -240,6 +241,10 @@ function App() {
     () => documents.filter((document) => document.indexingStatus === 'Ready'),
     [documents]
   );
+  const reviewModes = useMemo(
+    () => reviewModesFor(selectedDocumentIds.length),
+    [selectedDocumentIds.length]
+  );
 
   const persistAuth = (token: string, user: SessionUser) => {
     const nextSession = { token, user };
@@ -385,9 +390,8 @@ function App() {
     }
   };
 
-  const handleAsk = async (event: FormEvent) => {
-    event.preventDefault();
-    const trimmedQuestion = question.trim();
+  const askQuestion = async (rawQuestion: string) => {
+    const trimmedQuestion = rawQuestion.trim();
     if (!trimmedQuestion) {
       setNotification({ kind: 'error', message: 'Soru yazmalısın.' });
       return;
@@ -484,6 +488,16 @@ function App() {
     }
   };
 
+  const handleAsk = (event: FormEvent) => {
+    event.preventDefault();
+    void askQuestion(question);
+  };
+
+  const handleReviewMode = (prompt: string) => {
+    setQuestion(prompt);
+    void askQuestion(prompt);
+  };
+
   const handleStopAnswer = () => {
     chatControllerRef.current?.abort();
   };
@@ -524,7 +538,8 @@ function App() {
               <h1>Belgeni yükle.<br /><em>Cevabını kaynağından al.</em></h1>
               <p>
                 Sayfalar arasında arama yapmakla uğraşma. Sorunu yaz; SmartDocs AI
-                yüklediğin belgeleri incelesin, sana açık ve kaynaklı bir cevap hazırlasın.
+                yüklediğin belgeleri incelesin, cevaptaki her iddiayı gerçek PDF alıntısıyla
+                denetleyip sana açıkça göstersin.
               </p>
             </div>
 
@@ -541,12 +556,12 @@ function App() {
               <span className="workflow-arrow">→</span>
               <div className="workflow-step">
                 <span className="step-icon accent">✓</span>
-                <div><b>Kaynaklı cevabı al</b><small>Dayandığı sayfayı birlikte gör</small></div>
+                <div><b>Kanıtı denetle</b><small>İddia, alıntı ve sayfayı birlikte gör</small></div>
               </div>
             </div>
 
             <div className="trust-row">
-              <span>✓ Kaynak dışına çıkmaz</span>
+              <span>✓ Her iddiayı alıntıyla doğrular</span>
               <span>✓ Türkçe yanıt verir</span>
               <span>✓ Belgelerin sende kalır</span>
             </div>
@@ -919,6 +934,35 @@ function App() {
               })}
             </div>
           </div>
+
+          {selectedDocumentIds.length > 0 && (
+            <section className="review-modes" aria-labelledby="review-modes-title">
+              <div className="review-modes-intro">
+                <div>
+                  <span className="eyebrow">KANITLI İNCELEME MODLARI</span>
+                  <h4 id="review-modes-title">Belgeyi sadece arama, denetle</h4>
+                  <p>Tek tıkla yapılandırılmış analiz başlat; her bulguyu sayfa ve alıntı kanıtıyla kontrol et.</p>
+                </div>
+                <span className="review-shield" aria-hidden="true">✓</span>
+              </div>
+              <div className="review-mode-grid">
+                {reviewModes.map((mode) => (
+                  <button
+                    key={mode.id}
+                    type="button"
+                    className="review-mode-card"
+                    onClick={() => handleReviewMode(mode.prompt)}
+                    disabled={asking}
+                  >
+                    <span>{mode.icon}</span>
+                    <strong>{mode.title}</strong>
+                    <small>{mode.description}</small>
+                    <b aria-hidden="true">→</b>
+                  </button>
+                ))}
+              </div>
+            </section>
+          )}
 
           <ConversationThread
             conversation={selectedConversation}

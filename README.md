@@ -74,6 +74,7 @@ PDF → metin çıkarma → parçalara ayırma → Ollama embedding
 - Belge, sayfa, parça ve benzerlik skoru içeren kaynak gösterimi
 - İddia bazlı kanıt haritası; birebir alıntı ve iddia-alıntı örtüşmesini sunucuda doğrulama
 - Kanıtı doğrulanmayan iddiaları kullanıcıya cevap olarak sunmayan güvenli ret akışı
+- Yönetici özeti, kritik bilgi çıkarma, risk taraması ve çoklu belge tutarsızlık analizi için tek tıkla kanıtlı inceleme modları
 - Kaynak kartından ilgili PDF sayfasına açılan, metni vurgulayan güvenli önizleme
 - Tam sohbet geçmişi, yeni sohbet ve oturum süresi yönetimi
 - Başarısız indekslemeyi tekrar deneme ve durum takibi
