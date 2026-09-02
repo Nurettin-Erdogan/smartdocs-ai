@@ -30,6 +30,7 @@ describe('portfolio demo API', () => {
     expect(result.sources).toEqual([
       expect.objectContaining({ documentId: 12, title: 'Bilgi Güvenliği Politikası' })
     ]);
+    expect(result.verification).toMatchObject({ status: 'verified', score: 100 });
     expect(chunks.join('').toLocaleLowerCase('tr-TR')).toContain('rol bazlı');
 
     const conversation = await demoApi.getConversation(result.conversationId);
@@ -148,9 +149,24 @@ describe('portfolio demo API', () => {
   });
 
   it('uses the AI endpoint with broad document context and conversation history', async () => {
-    const generateAiAnswer = vi.fn().mockResolvedValue(
-      'Öğrencinin adı Nurettin Erdoğan. (Sınava Giriş Belgesi, s. 1)'
-    );
+    const generateAiAnswer = vi.fn().mockResolvedValue({
+      answer: 'Öğrencinin adı Nurettin Erdoğan.',
+      verification: {
+        status: 'verified',
+        score: 100,
+        supportedClaims: 1,
+        totalClaims: 1,
+        summary: 'Belge kanıtı doğrulandı.',
+        claims: [{
+          text: 'Öğrencinin adı Nurettin Erdoğan.',
+          sourceIndex: 1,
+          sourceTitle: 'Sınava Giriş Belgesi',
+          pageNumber: 1,
+          quote: 'Aday Adı Soyadı: Nurettin Erdoğan',
+          verified: true
+        }]
+      }
+    });
     const demoApi = createDemoApi({
       generateAiAnswer,
       extractPdf: async () => [
@@ -181,6 +197,7 @@ describe('portfolio demo API', () => {
 
     expect(result.mode).toBe('ai');
     expect(result.answer).toContain('Nurettin Erdoğan');
+    expect(result.verification).toMatchObject({ status: 'verified', supportedClaims: 1 });
     expect(generateAiAnswer).toHaveBeenLastCalledWith(
       expect.objectContaining({
         question: 'öğrenci ismi ne',

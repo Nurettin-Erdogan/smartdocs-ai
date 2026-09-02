@@ -7,6 +7,7 @@ import {
   useState
 } from 'react';
 import {
+  AnswerVerification,
   api,
   ChatConversation,
   ChatHistorySummary,
@@ -86,6 +87,7 @@ function App() {
   const [selectedConversation, setSelectedConversation] = useState<ChatConversation | null>(null);
   const [question, setQuestion] = useState('');
   const [sources, setSources] = useState<ChatResponse['sources']>([]);
+  const [verification, setVerification] = useState<AnswerVerification | null>(null);
   const [authForm, setAuthForm] = useState({ fullName: '', email: '', password: '' });
   const [loginForm, setLoginForm] = useState({ email: '', password: '' });
   const [uploadFile, setUploadFile] = useState<File | null>(null);
@@ -114,6 +116,7 @@ function App() {
     setSelectedConversation(null);
     setQuestion('');
     setSources([]);
+    setVerification(null);
     setUploadFile(null);
     setIsDraggingFile(false);
     setRefreshing(false);
@@ -405,6 +408,8 @@ function App() {
     const conversationBeforeRequest = selectedConversation;
     const conversationIdBeforeRequest = selectedConversationId;
     const sourcesBeforeRequest = sources;
+    const verificationBeforeRequest = verification;
+    setVerification(null);
     try {
       const result = await api.askChat({
         question: trimmedQuestion,
@@ -443,6 +448,7 @@ function App() {
       });
       setSelectedConversationId(result.conversationId);
       setSources(result.sources);
+      setVerification(result.verification ?? null);
       setQuestion('');
       setNotification({
         kind: result.mode === 'local' && isDemoMode ? 'info' : 'success',
@@ -464,6 +470,7 @@ function App() {
       setSelectedConversationId(conversationIdBeforeRequest);
       setSelectedConversation(conversationBeforeRequest);
       setSources(sourcesBeforeRequest);
+      setVerification(verificationBeforeRequest);
       if (isAbortError(error)) {
         setNotification({ kind: 'info', message: 'Cevap üretimi durduruldu.' });
       } else {
@@ -496,6 +503,7 @@ function App() {
     setSelectedConversationId(null);
     setSelectedConversation(null);
     setSources([]);
+    setVerification(null);
     setQuestion('');
     setNotification({ kind: 'info', message: 'Yeni sohbet hazır.' });
   };
@@ -749,6 +757,7 @@ function App() {
                 className={`history-item ${selectedConversationId === conversation.conversationId ? 'active' : ''}`}
                 onClick={() => {
                   setSources([]);
+                  setVerification(null);
                   setSelectedConversationId(conversation.conversationId);
                 }}
                 aria-current={selectedConversationId === conversation.conversationId ? 'true' : undefined}
@@ -916,6 +925,60 @@ function App() {
             isLoading={conversationLoading}
             isNewConversation={selectedConversationId === null}
           />
+
+          {verification && (
+            <section className={`evidence-panel ${verification.status}`} aria-label="Kanıt denetimi">
+              <div className="evidence-summary">
+                <div>
+                  <span className="eyebrow">KANIT DENETİMİ</span>
+                  <h4>{verification.status === 'verified'
+                    ? 'Belgeyle doğrulandı'
+                    : verification.status === 'partial'
+                      ? 'Kısmen doğrulandı'
+                      : 'Kanıt yetersiz'}</h4>
+                  <p>{verification.summary}</p>
+                </div>
+                <div className="evidence-score" aria-label={`Kanıt eşleşmesi yüzde ${verification.score}`}>
+                  <strong>%{verification.score}</strong>
+                  <span>kanıt eşleşmesi</span>
+                </div>
+              </div>
+              <div className="evidence-meter" aria-hidden="true">
+                <span style={{ width: `${verification.score}%` }} />
+              </div>
+              {verification.claims.length > 0 && (
+                <div className="evidence-claims">
+                  {verification.claims.map((claim, index) => {
+                    const source = claim.sourceIndex === null
+                      ? undefined
+                      : sources[claim.sourceIndex - 1];
+                    return (
+                      <article className={claim.verified ? 'verified' : 'rejected'} key={`${claim.text}-${index}`}>
+                        <div className="claim-head">
+                          <strong>{claim.verified ? '✓ Kanıt bulundu' : '× Kanıt doğrulanamadı'}</strong>
+                          {source && (
+                            <button
+                              type="button"
+                              onClick={() => setPreviewTarget({
+                                documentId: source.documentId,
+                                title: source.title,
+                                pageNumber: source.pageNumber,
+                                content: source.content
+                              })}
+                            >
+                              {source.title} · s. {source.pageNumber} →
+                            </button>
+                          )}
+                        </div>
+                        <p>{claim.text}</p>
+                        {claim.quote && <blockquote>“{claim.quote}”</blockquote>}
+                      </article>
+                    );
+                  })}
+                </div>
+              )}
+            </section>
+          )}
 
           <form onSubmit={handleAsk} className="chat-form">
             <label htmlFor="chat-question" className="sr-only">Sorun</label>

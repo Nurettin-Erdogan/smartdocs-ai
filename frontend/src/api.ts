@@ -53,11 +53,30 @@ export type ChatHistorySummary = {
   messageCount: number;
 };
 
+export type EvidenceClaim = {
+  text: string;
+  sourceIndex: number | null;
+  sourceTitle: string | null;
+  pageNumber: number | null;
+  quote: string;
+  verified: boolean;
+};
+
+export type AnswerVerification = {
+  status: 'verified' | 'partial' | 'insufficient';
+  score: number;
+  supportedClaims: number;
+  totalClaims: number;
+  summary: string;
+  claims: EvidenceClaim[];
+};
+
 export type ChatResponse = {
   conversationId: number;
   answer: string;
   sources: ChatSource[];
   mode?: 'ai' | 'local';
+  verification?: AnswerVerification;
 };
 
 export type ChatRequest = {

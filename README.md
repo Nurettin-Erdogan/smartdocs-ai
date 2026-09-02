@@ -10,7 +10,7 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/lisans-MIT-0f766e.svg" alt="MIT Lisansı"></a>
 </p>
 
-SmartDocs AI, kullanıcının kendi PDF belgeleri üzerinde kaynak göstererek Türkçe soru-cevap yapmasını sağlayan, yerel çalışabilen bir RAG uygulamasıdır.
+SmartDocs AI, PDF belgeleri üzerinde yalnızca cevap üretmekle kalmayan; yanıttaki iddiaları birebir belge alıntılarıyla denetleyen, kanıt yetersizse cevabı reddeden yerel çalışabilir bir RAG uygulamasıdır.
 
 <p align="center">
   <a href="https://smartdocs-ai-henna.vercel.app"><strong>Canlı vitrin demosu →</strong></a>
@@ -37,6 +37,7 @@ SmartDocs AI, kullanıcının kendi PDF belgeleri üzerinde kaynak göstererek T
 | --- | --- |
 | **Problem** | Özel PDF belgelerinde arama yapmak isteyen ekiplerin veriyi üçüncü taraf bir yapay zekâ servisine göndermek zorunda kalması |
 | **Çözüm** | Ollama, Qdrant ve PostgreSQL kullanan; cevaplarını sayfa ve parça düzeyinde kaynaklandıran yerel RAG sistemi |
+| **Ayırt edici özellik** | Modelin her iddia için verdiği birebir alıntıyı sunucuda gerçek kaynak metniyle ve iddia-alıntı örtüşmesiyle doğrulayan kanıt denetimi |
 | **Zor mühendislik kararları** | Kullanıcı bazlı vektör filtreleme, başarısız işlemde eski indeksi koruyan güvenli yeniden indeksleme ve dosya yükleme savunmaları |
 | **Doğrulama** | GitHub Actions, CodeQL, otomatik backend/frontend testleri ve Docker Compose ile tekrarlanabilir tam yığın kurulum |
 
@@ -71,6 +72,8 @@ PDF → metin çıkarma → parçalara ayırma → Ollama embedding
 - Ollama `/api/embed` ve `/api/generate` entegrasyonu
 - Qdrant Query API ile kullanıcıya ait belgelerde filtreli arama
 - Belge, sayfa, parça ve benzerlik skoru içeren kaynak gösterimi
+- İddia bazlı kanıt haritası; birebir alıntı ve iddia-alıntı örtüşmesini sunucuda doğrulama
+- Kanıtı doğrulanmayan iddiaları kullanıcıya cevap olarak sunmayan güvenli ret akışı
 - Kaynak kartından ilgili PDF sayfasına açılan, metni vurgulayan güvenli önizleme
 - Tam sohbet geçmişi, yeni sohbet ve oturum süresi yönetimi
 - Başarısız indekslemeyi tekrar deneme ve durum takibi

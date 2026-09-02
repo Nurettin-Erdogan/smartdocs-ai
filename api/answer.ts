@@ -39,6 +39,35 @@ type GeminiResponse = {
   }>;
 };
 
+type ModelClaim = {
+  claim?: unknown;
+  sourceId?: unknown;
+  quote?: unknown;
+};
+
+type ModelAnswer = {
+  answer: string;
+  claims: ModelClaim[];
+};
+
+type VerificationClaim = {
+  text: string;
+  sourceIndex: number | null;
+  sourceTitle: string | null;
+  pageNumber: number | null;
+  quote: string;
+  verified: boolean;
+};
+
+type AnswerVerification = {
+  status: 'verified' | 'partial' | 'insufficient';
+  score: number;
+  supportedClaims: number;
+  totalClaims: number;
+  summary: string;
+  claims: VerificationClaim[];
+};
+
 const MAX_QUESTION_CHARACTERS = 2_000;
 const MAX_SOURCE_CHARACTERS = 24_000;
 const MAX_HISTORY_CHARACTERS = 6_000;
@@ -130,6 +159,125 @@ const responseText = (payload: GeminiResponse) => payload.candidates
   .join('\n')
   .trim() ?? '';
 
+const parseModelAnswer = (value: string): ModelAnswer | null => {
+  const json = value
+    .replace(/^```(?:json)?\s*/i, '')
+    .replace(/\s*```$/, '')
+    .trim();
+
+  try {
+    const parsed = JSON.parse(json) as Record<string, unknown>;
+    const answer = typeof parsed.answer === 'string' ? parsed.answer.trim() : '';
+    if (!answer || !Array.isArray(parsed.claims)) return null;
+    return { answer, claims: parsed.claims as ModelClaim[] };
+  } catch {
+    return null;
+  }
+};
+
+const comparableText = (value: string) => value
+  .normalize('NFKC')
+  .toLocaleLowerCase('tr-TR')
+  .replace(/\s+/g, ' ')
+  .trim();
+
+const EVIDENCE_STOP_WORDS = new Set([
+  'acaba', 'ama', 'bana', 'belgede', 'belgenin', 'bir', 'bunu', 'icin', 'ile',
+  'ise', 'olarak', 'olan', 've', 'veya'
+]);
+
+const evidenceTerms = (value: string) => [...new Set(
+  comparableText(value)
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/ı/g, 'i')
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .split(/\s+/)
+    .filter((term) => term.length >= 3 && !EVIDENCE_STOP_WORDS.has(term))
+)];
+
+const sharesEvidenceStem = (left: string, right: string) => {
+  if (left === right || left.startsWith(right) || right.startsWith(left)) return true;
+  const length = Math.min(6, left.length, right.length);
+  return length >= 4 && left.slice(0, length) === right.slice(0, length);
+};
+
+const evidenceCoverage = (claim: string, quote: string) => {
+  const claimTerms = evidenceTerms(claim);
+  const quoteTerms = evidenceTerms(quote);
+  if (claimTerms.length === 0 || quoteTerms.length === 0) return 0;
+  const matches = claimTerms.filter((claimTerm) =>
+    quoteTerms.some((quoteTerm) => sharesEvidenceStem(claimTerm, quoteTerm))).length;
+  return matches / claimTerms.length;
+};
+
+const verifyClaims = (
+  request: AnswerRequest,
+  modelAnswer: ModelAnswer
+): { answer: string; verification: AnswerVerification } => {
+  const claims = modelAnswer.claims.slice(0, 8).flatMap((candidate): VerificationClaim[] => {
+    const text = typeof candidate.claim === 'string' ? candidate.claim.trim().slice(0, 320) : '';
+    const quote = typeof candidate.quote === 'string' ? candidate.quote.trim().slice(0, 600) : '';
+    const sourceId = Number(candidate.sourceId);
+    const sourceIndex = Number.isInteger(sourceId) && sourceId >= 1 && sourceId <= request.sources.length
+      ? sourceId - 1
+      : null;
+    if (!text) return [];
+
+    const source = sourceIndex === null ? null : request.sources[sourceIndex];
+    const normalizedQuote = comparableText(quote);
+    const coverage = evidenceCoverage(text, quote);
+    const verified = Boolean(
+      source &&
+      normalizedQuote.length >= 8 &&
+      comparableText(source.content).includes(normalizedQuote) &&
+      coverage >= 0.4
+    );
+
+    return [{
+      text,
+      sourceIndex: sourceIndex === null ? null : sourceIndex + 1,
+      sourceTitle: source?.title ?? null,
+      pageNumber: source?.pageNumber ?? null,
+      quote,
+      verified
+    }];
+  });
+
+  const supported = claims.filter((claim) => claim.verified);
+  const totalClaims = claims.length;
+  const supportedClaims = supported.length;
+  const score = totalClaims === 0 ? 0 : Math.round((supportedClaims / totalClaims) * 100);
+  const status: AnswerVerification['status'] = totalClaims > 0 && supportedClaims === totalClaims
+    ? 'verified'
+    : supportedClaims > 0
+      ? 'partial'
+      : 'insufficient';
+  const summary = status === 'verified'
+    ? 'Yanıttaki tüm iddiaların birebir belge kanıtı sunucu tarafından doğrulandı.'
+    : status === 'partial'
+      ? 'Yanıtın yalnızca belge içinde doğrulanabilen iddiaları gösteriliyor.'
+      : 'Bu yanıtı destekleyen birebir belge kanıtı doğrulanamadı.';
+
+  const answer = status === 'verified'
+    ? modelAnswer.answer
+    : status === 'partial'
+      ? `${supported.map((claim) => `• ${claim.text}`).join('\n')}\n\nDoğrulanamayan iddialar yanıttan çıkarıldı.`
+      : 'Bu soruyu belge içinden doğrulayacak yeterli kanıt bulamadım. Belgedeki ifadeye daha yakın ve açık bir soru deneyebilirsin.';
+
+  return {
+    answer,
+    verification: {
+      status,
+      score,
+      supportedClaims,
+      totalClaims,
+      summary,
+      claims
+    }
+  };
+};
+
 const promptFor = (body: AnswerRequest) => {
   const history = body.history?.length
     ? body.history.map((turn) => `Kullanıcı: ${turn.question}\nAsistan: ${turn.answer}`).join('\n\n')
@@ -188,7 +336,9 @@ export default async function handler(request: ApiRequest, response: ApiResponse
                 'Kişi adı sorulduğunda genel ifadelerle belge sahibinin adını karıştırma. ' +
                 'Bilgi kaynaklarda yoksa açıkça bulunamadığını söyle, tahmin etme. ' +
                 'Ham kaynak parçalarını peş peşe kopyalama. Genellikle 2-5 cümle kullan. ' +
-                'Dayandığın bilgilerin sonuna (Belge adı, s. N) biçiminde sayfa belirt.'
+                'Her somut iddiayı claims alanına ayrı yaz. Her iddia için onu doğrudan destekleyen kaynağın id numarasını ' +
+                've aynı kaynaktan değiştirmeden kopyalanmış kısa bir kanıt alıntısını ver. ' +
+                'Birebir kanıt bulamadığın iddiayı cevaba veya claims alanına ekleme. Bilgi yoksa claims boş dizi olsun.'
             }]
           },
           contents: [{
@@ -196,7 +346,34 @@ export default async function handler(request: ApiRequest, response: ApiResponse
             parts: [{ text: promptFor(body) }]
           }],
           generationConfig: {
-            maxOutputTokens: 600
+            maxOutputTokens: 900,
+            responseMimeType: 'application/json',
+            responseJsonSchema: {
+              type: 'object',
+              properties: {
+                answer: {
+                  type: 'string',
+                  description: 'Yalnızca belge kaynaklarına dayanan kısa Türkçe yanıt.'
+                },
+                claims: {
+                  type: 'array',
+                  maxItems: 8,
+                  description: 'Yanıttaki doğrulanabilir atomik iddialar ve birebir belge kanıtları.',
+                  items: {
+                    type: 'object',
+                    properties: {
+                      claim: { type: 'string', description: 'Tek bir doğrulanabilir iddia.' },
+                      sourceId: { type: 'integer', minimum: 1, description: 'Kaynak etiketindeki sayısal id.' },
+                      quote: { type: 'string', description: 'Kaynak metninden değiştirilmeden kopyalanan kısa kanıt.' }
+                    },
+                    required: ['claim', 'sourceId', 'quote'],
+                    additionalProperties: false
+                  }
+                }
+              },
+              required: ['answer', 'claims'],
+              additionalProperties: false
+            }
           }
         })
       }
@@ -209,13 +386,19 @@ export default async function handler(request: ApiRequest, response: ApiResponse
       return;
     }
 
-    const answer = responseText(payload);
-    if (!answer) {
+    const rawAnswer = responseText(payload);
+    if (!rawAnswer) {
       response.status(502).json({ message: 'Yapay zekâ boş bir cevap döndürdü.' });
       return;
     }
 
-    response.status(200).json({ answer });
+    const modelAnswer = parseModelAnswer(rawAnswer);
+    if (!modelAnswer) {
+      response.status(502).json({ message: 'Yapay zekâ doğrulanabilir bir cevap üretemedi.' });
+      return;
+    }
+
+    response.status(200).json(verifyClaims(body, modelAnswer));
   } catch (error) {
     console.error('Gemini request could not be completed', error instanceof Error ? error.message : 'unknown error');
     response.status(502).json({ message: 'Yapay zekâ bağlantısı kurulamadı.' });

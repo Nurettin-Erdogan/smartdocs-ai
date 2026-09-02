@@ -36,7 +36,14 @@ describe('Vercel AI answer endpoint', () => {
     vi.stubEnv('GEMINI_API_KEY', 'test-secret-key');
     vi.stubEnv('GEMINI_MODEL', 'gemini-3.5-flash-lite');
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({
-      candidates: [{ content: { parts: [{ text: 'Öğrencinin adı Nurettin Erdoğan. (Belge, s. 1)' }] } }]
+      candidates: [{ content: { parts: [{ text: JSON.stringify({
+        answer: 'Öğrencinin adı Nurettin Erdoğan.',
+        claims: [{
+          claim: 'Öğrencinin adı Nurettin Erdoğan.',
+          sourceId: 1,
+          quote: 'Ad Soyad: Nurettin Erdoğan'
+        }]
+      }) }] } }]
     }), { status: 200, headers: { 'Content-Type': 'application/json' } }));
     const response = responseForTest();
 
@@ -50,17 +57,63 @@ describe('Vercel AI answer endpoint', () => {
     }, response);
 
     expect(response.statusCode).toBe(200);
-    expect(response.body).toEqual({ answer: expect.stringContaining('Nurettin Erdoğan') });
+    expect(response.body).toEqual({
+      answer: expect.stringContaining('Nurettin Erdoğan'),
+      verification: expect.objectContaining({
+        status: 'verified',
+        score: 100,
+        supportedClaims: 1,
+        totalClaims: 1,
+        claims: [expect.objectContaining({ verified: true, sourceIndex: 1 })]
+      })
+    });
     const [url, init] = fetchMock.mock.calls[0] ?? [];
     expect(url).toBe('https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent');
     expect((init?.headers as Record<string, string>)['x-goog-api-key']).toBe('test-secret-key');
     const upstreamBody = JSON.parse(String(init?.body)) as Record<string, unknown>;
     expect(upstreamBody).toMatchObject({
       generationConfig: {
-        maxOutputTokens: 600
+        maxOutputTokens: 900,
+        responseMimeType: 'application/json'
       }
     });
+    expect(JSON.stringify(upstreamBody.generationConfig)).toContain('responseJsonSchema');
     expect(JSON.stringify(upstreamBody.contents)).toContain('Nurettin Erdoğan');
+  });
+
+  it('removes claims whose quoted evidence does not exist in the selected source', async () => {
+    vi.stubEnv('GEMINI_API_KEY', 'test-secret-key');
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({
+      candidates: [{ content: { parts: [{ text: JSON.stringify({
+        answer: 'Öğrencinin mezuniyet yılı 2025.',
+        claims: [{
+          claim: 'Öğrencinin mezuniyet yılı 2025.',
+          sourceId: 1,
+          quote: 'Mezuniyet yılı 2025'
+        }]
+      }) }] } }]
+    }), { status: 200, headers: { 'Content-Type': 'application/json' } }));
+    const response = responseForTest();
+
+    await answerHandler({
+      method: 'POST',
+      headers: { 'x-forwarded-for': '198.51.100.11' },
+      body: {
+        question: 'Mezuniyet yılı nedir?',
+        sources: [{ title: 'Belge', pageNumber: 1, content: 'Ad Soyad: Nurettin Erdoğan' }]
+      }
+    }, response);
+
+    expect(response.statusCode).toBe(200);
+    expect(response.body).toEqual({
+      answer: expect.stringContaining('yeterli kanıt bulamadım'),
+      verification: expect.objectContaining({
+        status: 'insufficient',
+        score: 0,
+        supportedClaims: 0,
+        claims: [expect.objectContaining({ verified: false })]
+      })
+    });
   });
 
   it('reports an unconfigured server without calling Gemini', async () => {

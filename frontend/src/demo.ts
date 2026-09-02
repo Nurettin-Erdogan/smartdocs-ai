@@ -1,4 +1,5 @@
 import type {
+  AnswerVerification,
   AuthResponse,
   ChatConversation,
   ChatHistorySummary,
@@ -110,10 +111,15 @@ type AiAnswerRequest = {
   history: Array<{ question: string; answer: string }>;
 };
 
+type AiAnswerResult = {
+  answer: string;
+  verification?: AnswerVerification;
+};
+
 type AiAnswerGenerator = (
   request: AiAnswerRequest,
   signal?: AbortSignal
-) => Promise<string | null>;
+) => Promise<AiAnswerResult | string | null>;
 
 type QuestionIntent =
   | 'document-identity'
@@ -273,10 +279,16 @@ const generateRemoteAiAnswer: AiAnswerGenerator = async (request, signal) => {
   });
   if (!response.ok) return null;
 
-  const payload = await response.json() as { answer?: unknown };
-  return typeof payload.answer === 'string' && payload.answer.trim()
-    ? payload.answer.trim()
-    : null;
+  const payload = await response.json() as {
+    answer?: unknown;
+    verification?: unknown;
+  };
+  if (typeof payload.answer !== 'string' || !payload.answer.trim()) return null;
+
+  return {
+    answer: payload.answer.trim(),
+    verification: payload.verification as AnswerVerification | undefined
+  };
 };
 
 const questionTerms = (question: string) => [...new Set(
@@ -338,6 +350,43 @@ const answerFor = (question: string, sources: ChatSource[], hasDirectMatch: bool
 
   return `${introduction}\n\n${excerpts.join('\n\n')}\n\n` +
     'Yanıt yalnızca tarayıcıda okunan belge metninden çıkarılmıştır; kaynak kartlarından ilgili sayfaları kontrol edebilirsin.';
+};
+
+const localVerificationFor = (
+  question: string,
+  sources: ChatSource[],
+  hasDirectMatch: boolean
+): AnswerVerification => {
+  if (!hasDirectMatch || sources.length === 0) {
+    return {
+      status: 'insufficient',
+      score: 0,
+      supportedClaims: 0,
+      totalClaims: 0,
+      summary: 'Soruyla doğrudan eşleşen birebir belge kanıtı bulunamadı.',
+      claims: []
+    };
+  }
+
+  const source = sources[0];
+  const quote = sourceExcerpt(source, questionTerms(question))
+    .replace(/…$/, '')
+    .trim();
+  return {
+    status: 'verified',
+    score: 100,
+    supportedClaims: 1,
+    totalClaims: 1,
+    summary: 'Yerel cevap doğrudan PDF içindeki eşleşen ifadeden üretildi.',
+    claims: [{
+      text: 'Gösterilen bilgi seçili PDF içindeki kaynakla eşleşiyor.',
+      sourceIndex: 1,
+      sourceTitle: source.title,
+      pageNumber: source.pageNumber,
+      quote,
+      verified: true
+    }]
+  };
 };
 
 const overviewAnswer = (
@@ -613,10 +662,13 @@ export function createDemoApi(options: DemoApiOptions = {}) {
       let answer = localAnswer;
       let responseSources = sources;
       let mode: 'ai' | 'local' = 'local';
+      let verification = intent === 'retrieval'
+        ? localVerificationFor(body.question, sources, retrieval?.hasDirectMatch ?? false)
+        : undefined;
 
-      if (aiAnswerGenerator && aiSources.length > 0) {
+      if (aiAnswerGenerator && aiSources.length > 0 && intent === 'retrieval') {
         try {
-          const generatedAnswer = await aiAnswerGenerator({
+          const generatedResult = await aiAnswerGenerator({
             question: body.question,
             sources: aiSources,
             history: previousConversation?.messages.slice(-4).map((message) => ({
@@ -624,10 +676,16 @@ export function createDemoApi(options: DemoApiOptions = {}) {
               answer: message.answer
             })) ?? []
           }, callbacks.signal);
+          const generatedAnswer = typeof generatedResult === 'string'
+            ? generatedResult
+            : generatedResult?.answer;
           if (generatedAnswer) {
             answer = generatedAnswer;
             responseSources = aiSources.slice(0, 6);
             mode = 'ai';
+            verification = typeof generatedResult === 'string'
+              ? undefined
+              : generatedResult?.verification;
           }
         } catch (error) {
           if (callbacks.signal?.aborted) throw error;
@@ -654,7 +712,7 @@ export function createDemoApi(options: DemoApiOptions = {}) {
       });
       conversations.set(conversationId, conversation);
 
-      return { conversationId, answer, sources: responseSources, mode };
+      return { conversationId, answer, sources: responseSources, mode, verification };
     },
     chatHistory: async (signal?: AbortSignal) => {
       await wait(70, signal);
