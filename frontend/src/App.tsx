@@ -299,7 +299,7 @@ function App() {
     }
   };
 
-  const handleFileChange = (file: File | null) => {
+  const handleFileChange = async (file: File | null) => {
     setNotification(null);
     if (!file) {
       setUploadFile(null);
@@ -322,18 +322,9 @@ function App() {
     }
 
     setUploadFile(file);
-  };
-
-  const handleUpload = async () => {
-    if (!uploadFile) {
-      setNotification({ kind: 'error', message: 'Önce bir PDF seçmelisin.' });
-      return;
-    }
-
     setUploading(true);
-    setNotification(null);
     try {
-      const result = await api.uploadDocument(uploadFile);
+      const result = await api.uploadDocument(file);
       setNotification({
         kind: result.indexingStatus === 'Ready' ? 'success' : 'info',
         message: result.indexingStatus === 'Ready'
@@ -705,13 +696,15 @@ function App() {
             onDrop={(event) => {
               event.preventDefault();
               setIsDraggingFile(false);
-              handleFileChange(event.dataTransfer.files?.[0] ?? null);
+              if (!uploading) void handleFileChange(event.dataTransfer.files?.[0] ?? null);
             }}
           >
             <span className="upload-icon">PDF</span>
             <span>
-              <strong>{uploadFile ? uploadFile.name : 'PDF dosyanı seç'}</strong>
-              <small>{uploadFile ? formatSize(uploadFile.size) : 'veya buraya sürükleyip bırak'}</small>
+              <strong>{uploadFile ? uploadFile.name : 'PDF yükle'}</strong>
+              <small>{uploadFile
+                ? `İşleniyor… · ${formatSize(uploadFile.size)}`
+                : 'Seçmek için tıkla veya buraya sürükle'}</small>
             </span>
             <input
               ref={fileInputRef}
@@ -719,31 +712,13 @@ function App() {
               type="file"
               accept="application/pdf,.pdf"
               aria-describedby="upload-help"
-              onChange={(event) => handleFileChange(event.target.files?.[0] ?? null)}
+              disabled={uploading}
+              onChange={(event) => void handleFileChange(event.target.files?.[0] ?? null)}
             />
           </label>
-          <div className="upload-help-row">
-            <small id="upload-help" className="muted">
-              En fazla 100 MB · yalnızca PDF{isDemoMode ? ' · cihazında işlenir' : ''}
-            </small>
-            {uploadFile && (
-              <button
-                type="button"
-                className="text-btn"
-                onClick={() => handleFileChange(null)}
-              >
-                Seçimi kaldır
-              </button>
-            )}
-          </div>
-          <button
-            type="button"
-            className="primary-btn"
-            onClick={() => void handleUpload()}
-            disabled={uploading || !uploadFile}
-          >
-            {uploading ? 'İşleniyor…' : 'PDF Yükle'}
-          </button>
+          <small id="upload-help" className="muted">
+            En fazla 100 MB · yalnızca PDF{isDemoMode ? ' · cihazında işlenir' : ''}
+          </small>
         </div>
 
         <div className="panel-subsection history-list">
