@@ -21,53 +21,6 @@ const DEMO_USER: AuthResponse = {
   token: 'smartdocs-demo-session'
 };
 
-const recentIso = (minutesAgo: number) =>
-  new Date(Date.now() - minutesAgo * 60_000).toISOString();
-
-const initialDocuments = (): DocumentItem[] => [
-  {
-    id: 11,
-    title: 'KVKK Uyum Rehberi 2026',
-    fileName: 'kvkk-uyum-rehberi-2026.pdf',
-    fileType: 'application/pdf',
-    fileSize: 2_486_272,
-    uploadDate: recentIso(48),
-    indexingStatus: 'Ready'
-  },
-  {
-    id: 12,
-    title: 'Bilgi Güvenliği Politikası',
-    fileName: 'bilgi-guvenligi-politikasi.pdf',
-    fileType: 'application/pdf',
-    fileSize: 1_178_624,
-    uploadDate: recentIso(41),
-    indexingStatus: 'Ready'
-  },
-  {
-    id: 13,
-    title: 'Tedarikçi Risk Değerlendirmesi',
-    fileName: 'tedarikci-risk-degerlendirmesi.pdf',
-    fileType: 'application/pdf',
-    fileSize: 864_320,
-    uploadDate: recentIso(33),
-    indexingStatus: 'Ready'
-  }
-];
-
-const initialConversation = (): ChatConversation => ({
-  conversationId: 101,
-  createdAt: recentIso(24),
-  messages: [
-    {
-      id: 1,
-      question: 'KVKK kapsamında veri sorumlusunun temel yükümlülükleri nelerdir?',
-      answer:
-        'Veri sorumlusu; kişisel verilerin işleme amaçlarını ve vasıtalarını açıkça belirlemeli, erişimleri rol bazlı sınırlandırmalı ve işleme faaliyetlerini kayıt altına almalıdır. Saklama süresi dolan veriler güvenli biçimde silinmeli; ihlal riskleri düzenli olarak değerlendirilmelidir.',
-      createdAt: recentIso(24)
-    }
-  ]
-});
-
 const cloneDocument = (document: DocumentItem): DocumentItem => ({ ...document });
 const cloneConversation = (conversation: ChatConversation): ChatConversation => ({
   ...conversation,
@@ -428,39 +381,13 @@ const overviewAnswer = (
     (excerpts.length ? `\n\nÖne çıkan bilgiler:\n${excerpts.join('\n')}` : '');
 };
 
-const initialStoredChunks = (): StoredChunk[] => [
-  {
-    documentId: 11,
-    title: 'KVKK Uyum Rehberi 2026',
-    chunkIndex: 0,
-    pageNumber: 12,
-    content: 'Veri sorumlusu, kişisel verilerin işleme amaçlarını ve vasıtalarını belirler. Saklama sürelerini tanımlar ve süresi dolan verilerin güvenli biçimde silinmesini sağlar.'
-  },
-  {
-    documentId: 12,
-    title: 'Bilgi Güvenliği Politikası',
-    chunkIndex: 1,
-    pageNumber: 8,
-    content: 'Erişim yetkileri rol bazlı sınırlandırılır ve en az yetki ilkesi uygulanır. İşlemler denetim kaydına alınır ve düzenli olarak gözden geçirilir.'
-  },
-  {
-    documentId: 13,
-    title: 'Tedarikçi Risk Değerlendirmesi',
-    chunkIndex: 2,
-    pageNumber: 5,
-    content: 'Tedarikçiler veri erişimi, hizmet sürekliliği ve güvenlik kontrolü başlıklarında periyodik olarak değerlendirilir.'
-  }
-];
-
 export function createDemoApi(options: DemoApiOptions = {}) {
-  let documents = initialDocuments();
-  let storedChunks = initialStoredChunks();
-  let nextDocumentId = 20;
-  let nextConversationId = 102;
-  let nextMessageId = 2;
-  const conversations = new Map<number, ChatConversation>([
-    [101, initialConversation()]
-  ]);
+  let documents: DocumentItem[] = [];
+  let storedChunks: StoredChunk[] = [];
+  let nextDocumentId = 1;
+  let nextConversationId = 1;
+  let nextMessageId = 1;
+  const conversations = new Map<number, ChatConversation>();
   const uploadedFiles = new Map<number, File>();
   const pdfExtractor = options.extractPdf ?? extractPdfChunks;
   const aiAnswerGenerator = options.generateAiAnswer === undefined

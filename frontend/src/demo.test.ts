@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { createDemoApi } from './demo';
 
 describe('portfolio demo API', () => {
-  it('opens with ready sample documents and conversation history', async () => {
+  it('opens with an empty document library and conversation history', async () => {
     const demoApi = createDemoApi();
 
     const [documents, history] = await Promise.all([
@@ -10,25 +10,34 @@ describe('portfolio demo API', () => {
       demoApi.chatHistory()
     ]);
 
-    expect(documents).toHaveLength(3);
-    expect(documents.every((document) => document.indexingStatus === 'Ready')).toBe(true);
-    expect(history[0]).toMatchObject({ conversationId: 101, messageCount: 1 });
+    expect(documents).toEqual([]);
+    expect(history).toEqual([]);
   });
 
   it('streams a sourced answer and saves it to the demo conversation', async () => {
-    const demoApi = createDemoApi();
+    const demoApi = createDemoApi({
+      generateAiAnswer: null,
+      extractPdf: async () => [{
+        chunkIndex: 0,
+        pageNumber: 8,
+        content: 'Erişim yetkileri rol bazlı sınırlandırılır ve en az yetki ilkesi uygulanır.'
+      }]
+    });
+    const uploaded = await demoApi.uploadDocument(
+      new File(['demo'], 'Bilgi Güvenliği Politikası.pdf', { type: 'application/pdf' })
+    );
     const chunks: string[] = [];
     const started = vi.fn();
 
     const answerPromise = demoApi.askChat(
-      { question: 'Erişimler nasıl sınırlandırılmalı?', documentIds: [11, 12] },
+      { question: 'Erişimler nasıl sınırlandırılmalı?', documentIds: [uploaded.id] },
       { onStart: started, onChunk: (chunk) => chunks.push(chunk) }
     );
     const result = await answerPromise;
 
     expect(started).toHaveBeenCalledOnce();
     expect(result.sources).toEqual([
-      expect.objectContaining({ documentId: 12, title: 'Bilgi Güvenliği Politikası' })
+      expect.objectContaining({ documentId: uploaded.id, title: 'Bilgi Güvenliği Politikası' })
     ]);
     expect(result.verification).toMatchObject({ status: 'verified', score: 100 });
     expect(chunks.join('').toLocaleLowerCase('tr-TR')).toContain('rol bazlı');
