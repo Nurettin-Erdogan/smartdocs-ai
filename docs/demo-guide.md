@@ -1,55 +1,16 @@
-# 3 dakikalık demo
+# Canlı tur
 
-SmartDocs AI’ı “PDF’e soru sordum” düzeyinde bırakmadan kaynak, kanıt ve sahiplik sınırlarıyla gösterir.
+[SmartDocs AI](https://smartdocs-ai-henna.vercel.app) PDF üzerinde kaynaklı cevap üretir. Canlı vitrinde dosya tarayıcıda kalır; cevap için seçilen metin parçaları Google Gemini’ye gider. Tam gizlilik için Docker + Ollama + Qdrant kullanılır.
 
-## Hazırlık
+Kişisel belge yerine kısa, paylaşılabilir bir PDF kullanın.
 
-- Canlı vitrin: kayıt olmadan PDF alanını açın. Dosya tarayıcıda kalır; cevap için seçilen metin parçaları Google Gemini’ye gider.
-- Tam gizlilik yolu: Docker, `nomic-embed-text` ve `qwen2.5:3b` hazır olsun. Kısa, paylaşılabilir bir örnek PDF kullanın.
+## Vitrin
 
-## 0:00–0:30 — Problem
+1. Kayıt olmadan PDF alanını açın.
+2. Belgeyi yükleyin; indeks **Ready** olunca net bir soru sorun.
+3. Kaynak panelinde belge, sayfa ve alıntıyı görün. **PDF’de aç** ilgili sayfaya gider.
+4. Kanıt yetersizse cevap budanır veya reddedilir.
 
-Ekipler kendi PDF’lerinde soru-cevap ister; özel metni üçüncü tarafa vermek istemeyebilir. SmartDocs AI yerelde gömme ve üretim yapar, cevabı sayfa ve parça kaynağıyla gösterir. Vitrin yolu aynı arayüzü Gemini ile sunar ve veri akışını açık yazar.
+## Yerel yığın
 
-## 0:30–1:15 — Belge
-
-1. Yeni kullanıcı oluşturun veya vitrinde kendi PDF’inizle deneyin.
-2. Örnek PDF yükleyin.
-3. `Pending → Ready` durumunu gösterin.
-4. Metinsiz veya bozuk dosyanın açık hata durumuna geçtiğini anlatın.
-
-Boyut, PDF imzası, rastgele dosya adı ve işlem sınırları API’de uygulanır.
-
-## 1:15–2:05 — Kaynaklı cevap
-
-1. Yalnızca belgede yanıtı olan net bir soru sorun.
-2. Kaynak panelinde belge, sayfa, parça ve benzerliği açın.
-3. **PDF’de aç** ile alıntıyı doğrulayın.
-4. Takip sorusu ve sohbet geçmişini gösterin.
-
-Qdrant araması kullanıcı kimliğiyle süzülür. Başka hesabın belgesine veya sohbetine erişim yoktur. Yerel yığında iddia, belgedeki alıntıyla sunucuda örtüşmezse cevap budanır veya reddedilir.
-
-## 2:05–2:40 — Yeniden indeksleme
-
-1. Yeniden indeksleme kuyruğunu gösterin.
-2. Yeni vektörlerin ayrı sürüme yazıldığını anlatın.
-3. Başarısızlıkta eski indeksin kaldığını vurgulayın.
-4. Başarıda aktif sürümün atomik değiştiğini belirtin.
-
-## 2:40–3:00 — Kapanış
-
-SmartDocs AI, RAG’i tek model çağrısı olarak değil; kimlik, sahiplik, kalıcı sohbet, güvenli dosya işleme ve kanıt denetimi olan bir ürün akışı olarak kurar.
-
-## Olası sorular
-
-**Neden hem PostgreSQL hem Qdrant?**  
-PostgreSQL sahiplik, sohbet ve indeks durumunu tutar. Qdrant anlamsal aramayı tutar. Vektör deposu tek başına yetki kaynağı değildir.
-
-**Parça boyutu nasıl seçildi?**  
-Kısa alan sorularına yetecek kadar bağlam, uzun kopya yapıştırmayı önleyecek kadar dar. Örtüşme, cümle sınırında kopan iddiaları kurtarır.
-
-**Uydurmayı nasıl sınırlıyorsunuz?**  
-Cevap, getirilen parçalara bağlanır. Kanıt doğrulayıcı alıntının kaynak metinde geçmesini ister; yetersiz örtüşmede güvenli ret üretir. Bu, halüsinasyonu sıfırlamaz; temelsiz iddiayı azaltır.
-
-**İndeks yarıda kalırsa?**  
-Yeni sürüm ayrı koleksiyondadır. İşlem bitmeden eski sürüm okumaya devam eder; başarıda işaret atomik değişir.
+Yükleme boyutu, PDF imzası ve dosya adı API’de denetlenir. Qdrant araması kullanıcı kimliğiyle süzülür. Yeniden indekslemede yeni vektörler ayrı sürüme yazılır; işlem bitmeden eski indeks okumaya devam eder.

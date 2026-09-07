@@ -19,7 +19,7 @@ SmartDocs AI, PDF belgeleri üzerinde yalnızca cevap üretmekle kalmayan; yanı
   &nbsp;·&nbsp;
   <a href="#docker-ile-hızlı-başlangıç"><strong>Yerelde çalıştır →</strong></a>
   &nbsp;·&nbsp;
-  <a href="docs/demo-guide.md"><strong>3 dakikalık demo</strong></a>
+  <a href="docs/demo-guide.md"><strong>Canlı tur</strong></a>
   &nbsp;·&nbsp;
   <a href="docs/system-architecture.md">Mimari</a>
   &nbsp;·&nbsp;
@@ -33,7 +33,7 @@ SmartDocs AI, PDF belgeleri üzerinde yalnızca cevap üretmekle kalmayan; yanı
 </p>
 <p align="center"><sub>Canlı vitrin, PDF’yi tarayıcıda işler ve ilgili metin parçalarından yapay zekâ destekli, kaynaklı cevap üretir.</sub></p>
 
-## Portföy özeti
+## Özet
 
 | | |
 | --- | --- |
