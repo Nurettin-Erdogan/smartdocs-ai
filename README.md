@@ -8,6 +8,8 @@
   <a href="https://github.com/Nurettin-Erdogan/smartdocs-ai/actions/workflows/ci.yml"><img src="https://github.com/Nurettin-Erdogan/smartdocs-ai/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI durumu"></a>
   <a href="https://github.com/Nurettin-Erdogan/smartdocs-ai/actions/workflows/codeql.yml"><img src="https://github.com/Nurettin-Erdogan/smartdocs-ai/actions/workflows/codeql.yml/badge.svg?branch=main" alt="CodeQL güvenlik analizi"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/lisans-MIT-0f766e.svg" alt="MIT Lisansı"></a>
+  <a href="https://smartdocs-ai-henna.vercel.app"><img src="https://img.shields.io/badge/canl%C4%B1%20vitrin-Vercel-0f766e.svg" alt="Canlı vitrin"></a>
+  <img src="https://img.shields.io/badge/.NET-10-0f766e.svg" alt=".NET 10">
 </p>
 
 SmartDocs AI, PDF belgeleri üzerinde yalnızca cevap üretmekle kalmayan; yanıttaki iddiaları birebir belge alıntılarıyla denetleyen, kanıt yetersizse cevabı reddeden yerel çalışabilir bir RAG uygulamasıdır.
@@ -35,25 +37,20 @@ SmartDocs AI, PDF belgeleri üzerinde yalnızca cevap üretmekle kalmayan; yanı
 
 | | |
 | --- | --- |
-| **Problem** | Özel PDF belgelerinde arama yapmak isteyen ekiplerin veriyi üçüncü taraf bir yapay zekâ servisine göndermek zorunda kalması |
-| **Çözüm** | Ollama, Qdrant ve PostgreSQL kullanan; cevaplarını sayfa ve parça düzeyinde kaynaklandıran yerel RAG sistemi |
-| **Ayırt edici özellik** | Modelin her iddia için verdiği birebir alıntıyı sunucuda gerçek kaynak metniyle ve iddia-alıntı örtüşmesiyle doğrulayan kanıt denetimi |
-| **Zor mühendislik kararları** | Kullanıcı bazlı vektör filtreleme, başarısız işlemde eski indeksi koruyan güvenli yeniden indeksleme ve dosya yükleme savunmaları |
-| **Doğrulama** | GitHub Actions, CodeQL, otomatik backend/frontend testleri ve Docker Compose ile tekrarlanabilir tam yığın kurulum |
+| **Problem** | PDF’lerde arama yapan ekiplerin ya kaynak denetimsiz sohbet botlarına ya da ağır bulut RAG’e mahkûm kalması |
+| **Çözüm** | Ollama, Qdrant ve PostgreSQL ile çalışan; cevaplarını sayfa/parça düzeyinde kaynaklandıran ve kanıtı sunucuda doğrulayan yerel RAG |
+| **Canlı vitrin** | PDF tarayıcıda kalır; seçilen metin parçaları Google Gemini’ye gider (`vercel.json` → `npm run build:demo` → `.env.demo`) |
+| **Tam gizlilik** | Docker + Ollama + Qdrant — belge ve model makinede kalır |
+| **Ayırt edici özellik** | İddia–alıntı örtüşmesini sunucuda doğrulayan kanıt denetimi; yetersiz kanıtta güvenli ret |
+| **Doğrulama** | GitHub Actions, CodeQL, backend/frontend testleri, Docker Compose |
 
 Bu proje; RAG akışını bir demo çağrısından çıkarıp kimlik doğrulama, sahiplik sınırları, kalıcı veri, hata durumları ve kaynak gösterimi olan gerçek bir ürüne dönüştürebildiğimi gösterir.
 
-Repository ayrıca ağır Ollama/Qdrant altyapısı olmadan çalışan bir **Vercel vitrin modu**
-içerir. Canlı sürümde yüklenen PDF, PDF.js ile doğrudan tarayıcıda okunur ve
-sayfalara göre parçalanır. PDF dosyasının kendisi sunucuya yüklenmez; soruyla ilgili
-metin parçaları, sunucu tarafındaki anahtar ile Google Gemini API'ye gönderilerek
-Türkçe ve kaynaklı cevap üretilir. Yapay zekâ servisi kullanılamazsa kaynaklara dayalı
-yerel cevap motoru otomatik olarak devreye girer. Sayfa yenilendiğinde yerel oturum temizlenir.
+## English
 
-Tüm belge içeriğinin ve modelin makinede kalması gereken senaryolarda Docker ile çalışan
-Ollama + Qdrant kurulumu kullanılmalıdır.
+SmartDocs AI is a sourced PDF RAG assistant: claims are checked against real document quotes and rejected when evidence is weak. **Live demo** ([smartdocs-ai-henna.vercel.app](https://smartdocs-ai-henna.vercel.app)): PDF stays in the browser; selected chunks go to Google Gemini for the answer. **Full local stack**: ASP.NET Core, React, PostgreSQL, Qdrant, Ollama via Docker — data and models stay on your machine.
 
-Canlı demo: <https://smartdocs-ai-henna.vercel.app>
+Repository also ships a **Vercel showcase mode** that runs without Ollama/Qdrant.
 
 ```text
 Canlı vitrin: PDF → tarayıcıda metin çıkarma → ilgili parçaları seçme

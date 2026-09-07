@@ -306,6 +306,7 @@ export default async function handler(request: ApiRequest, response: ApiResponse
   }
 
   if (isRateLimited(clientAddress(request))) {
+    response.setHeader('Retry-After', '60');
     response.status(429).json({ message: 'Çok fazla soru gönderildi. Bir dakika sonra tekrar deneyin.' });
     return;
   }
@@ -381,7 +382,7 @@ export default async function handler(request: ApiRequest, response: ApiResponse
 
     const payload = await upstream.json() as GeminiResponse & { error?: { message?: string } };
     if (!upstream.ok) {
-      console.error('Gemini request failed', upstream.status, payload.error?.message ?? 'unknown error');
+      console.error('Gemini request failed', upstream.status);
       response.status(502).json({ message: 'Yapay zekâ servisi şu anda cevap veremiyor.' });
       return;
     }
@@ -399,8 +400,8 @@ export default async function handler(request: ApiRequest, response: ApiResponse
     }
 
     response.status(200).json(verifyClaims(body, modelAnswer));
-  } catch (error) {
-    console.error('Gemini request could not be completed', error instanceof Error ? error.message : 'unknown error');
+  } catch {
+    console.error('Gemini request could not be completed');
     response.status(502).json({ message: 'Yapay zekâ bağlantısı kurulamadı.' });
   }
 }

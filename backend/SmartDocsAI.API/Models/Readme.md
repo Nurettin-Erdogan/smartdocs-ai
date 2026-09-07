@@ -1,1 +1,0 @@
-- Veritabanı tablolarını temsil eder

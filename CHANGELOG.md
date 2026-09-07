@@ -6,6 +6,18 @@
 
 ### Eklendi
 
+- Vitrin demosunda Gemini veri akışını ve yerel/Docker ayrımını arayüzde netleştirme.
+- README İngilizce özeti, canlı vitrin badge’i ve portföy tablosunda demo/gizlilik satırları.
+- Vercel `/api/answer` yanıtında `Retry-After` başlığı.
+
+### Değiştirildi
+
+- Öğretici `backend/.../Readme.md` dosyaları kaldırıldı.
+- Frontend paket sürümü `1.0.0`; paylaşım meta açıklamaları vitrin gerçeğiyle hizalandı.
+- Gemini hata loglarından sağlayıcı mesajı temizlendi.
+
+### Eklendi (önceki)
+
 - Katkı rehberi, issue şablonları ve pull request kontrol listesi.
 - README üzerinde görünür CodeQL ve lisans kanıtları.
 

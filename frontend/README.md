@@ -1,8 +1,8 @@
 # SmartDocs AI frontend
 
-React 19, TypeScript ve Vite tabanlı kullanıcı arayüzüdür.
+React 19, TypeScript ve Vite tabanlı kullanıcı arayüzü.
 
-## Geliştirme
+## Geliştirme (tam backend’e bağlı)
 
 ```powershell
 npm ci
@@ -11,11 +11,18 @@ npm run dev
 
 Vite `http://localhost:5173` adresinde çalışır. `/api` istekleri varsayılan olarak `http://localhost:5129` backend adresine yönlendirilir.
 
-Farklı API adresi için `.env.example` dosyasını `.env.local` olarak kopyalayın:
-
 ```dotenv
 VITE_API_BASE_URL=https://api.example.com/api
 ```
+
+## Vitrin demosu (Vercel)
+
+```powershell
+npm run build:demo
+```
+
+`vite build --mode demo` → `frontend/.env.demo` içindeki `VITE_DEMO_MODE=true` ile `isDemoMode` açılır.
+Kök `vercel.json` bu komutu kullanır. PDF tarayıcıda (`localPdf.ts` / `demo.ts`) işlenir; cevap için seçilen parçalar `/api/answer` üzerinden Gemini’ye gider.
 
 ## Kalite kontrolleri
 
@@ -25,14 +32,17 @@ npm test
 npm run build
 ```
 
-Testler Vitest ile oturum saklama ve API hata ayrıştırma davranışlarını doğrular. Üretim çıktısı `dist` dizinine yazılır; Docker imajı bu çıktıyı ASP.NET Core `wwwroot` dizinine kopyalar.
+Vitest; oturum, API hataları, demo akışı ve bağımlılık sürümlerini doğrular.
 
 ## Kaynak yapısı
 
 ```text
 src/App.tsx                         ana ekran ve akışlar
-src/api.ts                         tür güvenli HTTP katmanı
-src/session.ts                     doğrulanan localStorage oturumu
-src/components/ConversationThread  sohbet mesajları
-src/components/NotificationBanner  erişilebilir bildirimler
+src/api.ts                          HTTP katmanı + isDemoMode köprüsü
+src/demo.ts                         vitrin API’si ve Gemini istemcisi
+src/localPdf.ts                     tarayıcıda PDF metin çıkarma
+src/session.ts                      localStorage oturumu
+src/components/ConversationThread   sohbet
+src/components/DocumentPreview      sayfa önizleme / vurgu
+src/components/NotificationBanner   bildirimler
 ```
