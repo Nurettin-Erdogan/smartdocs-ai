@@ -255,7 +255,7 @@ function App() {
     });
     setNotification({
       kind: 'info',
-      message: 'Yapay zekâ destekli PDF alanı açıldı. Dosya cihazında okunur; yalnızca ilgili metin bölümleri cevap için gönderilir.'
+      message: 'Vitrin açıldı. PDF cihazında okunur; ilgili metin parçaları cevap için Google Gemini’ye gönderilir. Tam gizlilik için yerel Docker kurulumunu kullan.'
     });
   };
 
@@ -511,7 +511,10 @@ function App() {
           <section className="hero-block">
             <header className="auth-brand">
               <div className="brand-pill"><span className="brand-mark">S</span> SmartDocs AI</div>
-              <span className="local-badge"><span className="pulse-dot" /> Yerel ve güvenli</span>
+              <span className="local-badge">
+                <span className="pulse-dot" />
+                {isDemoMode ? 'Vitrin demosu' : 'Yerel ve güvenli'}
+              </span>
             </header>
 
             <div className="hero-copy">
@@ -544,8 +547,14 @@ function App() {
             <div className="trust-row">
               <span>✓ Her iddiayı alıntıyla doğrular</span>
               <span>✓ Türkçe yanıt verir</span>
-              <span>✓ Belgelerin sende kalır</span>
+              <span>{isDemoMode ? '✓ PDF sunucuya yüklenmez' : '✓ Belgelerin sende kalır'}</span>
             </div>
+            {isDemoMode && (
+              <p className="demo-privacy-note">
+                Bu vitrinde PDF tarayıcında okunur; soruyla ilgili metin parçaları cevap için Google Gemini’ye gönderilir.
+                Tam gizlilik için Docker + Ollama ile yerelde çalıştır.
+              </p>
+            )}
           </section>
 
           <section className="panel auth-panel" aria-labelledby="auth-title">
@@ -629,12 +638,17 @@ function App() {
                 <div className="demo-divider"><span>veya</span></div>
                 <button className="demo-btn" type="button" onClick={handleOpenDemo}>
                   <span className="demo-btn-icon">▶</span>
-                  <span><strong>Kendi PDF’inle dene</strong><small>Kayıt gerekmez · yapay zekâ destekli</small></span>
+                  <span><strong>Kendi PDF’inle dene</strong><small>Kayıt gerekmez · PDF yerelde · cevap için Gemini</small></span>
                 </button>
               </div>
             )}
 
-            <p className="auth-security"><span>⌁</span> PDF cihazında okunur; yalnızca ilgili metin parçaları cevap için gönderilir.</p>
+            <p className="auth-security">
+              <span>⌁</span>
+              {isDemoMode
+                ? 'PDF sunucuya yüklenmez; seçilen metin parçaları cevap üretimi için Gemini API’ye gider.'
+                : 'Yerel kurulumda belgeler ve modeller makinenizde kalır (Ollama + Qdrant).'}
+            </p>
           </section>
         </main>
 
@@ -655,7 +669,7 @@ function App() {
       <aside className="sidebar panel">
         <div>
           <div className="brand-pill"><span className="brand-mark">✦</span> SmartDocs AI</div>
-          {isDemoMode && <div className="demo-mode-badge"><span /> Yapay zekâ destekli</div>}
+          {isDemoMode && <div className="demo-mode-badge"><span /> Vitrin · Gemini ile cevap</div>}
           <h2>{user.fullName}</h2>
           <p>{user.email}</p>
           <div className="role-tag">{user.role ?? 'Kullanıcı'}</div>
