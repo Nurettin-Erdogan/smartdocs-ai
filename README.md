@@ -44,7 +44,7 @@ SmartDocs AI, PDF belgeleri üzerinde yalnızca cevap üretmekle kalmayan; yanı
 | **Ayırt edici özellik** | İddia–alıntı örtüşmesini sunucuda doğrulayan kanıt denetimi; yetersiz kanıtta güvenli ret |
 | **Doğrulama** | GitHub Actions, CodeQL, backend/frontend testleri, Docker Compose |
 
-Bu proje; RAG akışını bir demo çağrısından çıkarıp kimlik doğrulama, sahiplik sınırları, kalıcı veri, hata durumları ve kaynak gösterimi olan gerçek bir ürüne dönüştürebildiğimi gösterir.
+SmartDocs AI, RAG’i tek bir model çağrısı olarak bırakmaz. Kimlik, sahiplik, kalıcı sohbet, dosya işleme ve kanıt denetimi aynı üründe durur.
 
 ## English
 

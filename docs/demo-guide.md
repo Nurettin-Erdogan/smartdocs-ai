@@ -1,54 +1,55 @@
-# 3 Dakikalık Demo Akışı
+# 3 dakikalık demo
 
-Bu senaryo SmartDocs AI'ın RAG akışını yalnızca “PDF'e soru sordum” düzeyinde bırakmadan güvenlik, kaynak gösterimi ve hata yönetimiyle birlikte anlatır.
+SmartDocs AI’ı “PDF’e soru sordum” düzeyinde bırakmadan kaynak, kanıt ve sahiplik sınırlarıyla gösterir.
 
 ## Hazırlık
 
-- Canlı Vercel vitrini kullanılacaksa kayıt olmadan yapay zekâ destekli PDF alanını aç.
-  PDF tarayıcı içinde işlenir; dosyanın kendisi yüklenmez, yalnızca cevap için seçilen
-  metin bölümleri Google Gemini API'ye gönderilir.
-- Docker Desktop'ı başlat.
-- `nomic-embed-text` ve `qwen2.5:3b` modellerinin hazır olduğunu doğrula.
-- Kişisel veya gizli belge yerine kısa, paylaşılabilir bir örnek PDF kullan.
-- `start-smartdocs.cmd` veya `docker compose up --build` ile sistemi aç.
+- Canlı vitrin: kayıt olmadan PDF alanını açın. Dosya tarayıcıda kalır; cevap için seçilen metin parçaları Google Gemini’ye gider.
+- Tam gizlilik yolu: Docker, `nomic-embed-text` ve `qwen2.5:3b` hazır olsun. Kısa, paylaşılabilir bir örnek PDF kullanın.
 
 ## 0:00–0:30 — Problem
 
-“Ekipler kendi PDF belgelerinde soru-cevap yapmak istiyor fakat özel veriyi üçüncü taraf servise göndermek istemeyebiliyor. SmartDocs AI, embedding ve cevap üretimini yerelde çalıştırıp cevabı kaynak parçalarıyla birlikte gösteriyor.”
+Ekipler kendi PDF’lerinde soru-cevap ister; özel metni üçüncü tarafa vermek istemeyebilir. SmartDocs AI yerelde gömme ve üretim yapar, cevabı sayfa ve parça kaynağıyla gösterir. Vitrin yolu aynı arayüzü Gemini ile sunar ve veri akışını açık yazar.
 
-## 0:30–1:15 — Belge akışı
+## 0:30–1:15 — Belge
 
-1. Yeni kullanıcı oluştur veya canlı vitrinde “Kendi PDF’inle dene” seçeneğini aç.
-2. Örnek PDF'i yükle.
-3. `Pending → Ready` indeksleme durumunu göster.
-4. Metin içermeyen veya başarısız bir belgenin açık hata durumuna geçtiğini anlat.
+1. Yeni kullanıcı oluşturun veya vitrinde kendi PDF’inizle deneyin.
+2. Örnek PDF yükleyin.
+3. `Pending → Ready` durumunu gösterin.
+4. Metinsiz veya bozuk dosyanın açık hata durumuna geçtiğini anlatın.
 
-Vurgu: yükleme boyutu, PDF imzası, güvenli fiziksel dosya adı ve işlem sınırları API katmanında uygulanır.
+Boyut, PDF imzası, rastgele dosya adı ve işlem sınırları API’de uygulanır.
 
-## 1:15–2:05 — Kaynaklı soru-cevap
+## 1:15–2:05 — Kaynaklı cevap
 
-1. Yalnızca belgede yanıtı bulunan net bir soru sor.
-2. Cevabın altındaki belge, sayfa, parça ve benzerlik bilgilerini aç.
-3. **PDF’de aç** ile ilgili sayfaya git ve yanıtta kullanılan kaynak metnini doğrula.
-4. Bir takip sorusu sorarak sohbet bağlamını göster.
-5. Yeni sohbet başlatıp geçmiş konuşmanın kalıcı olduğunu göster.
+1. Yalnızca belgede yanıtı olan net bir soru sorun.
+2. Kaynak panelinde belge, sayfa, parça ve benzerliği açın.
+3. **PDF’de aç** ile alıntıyı doğrulayın.
+4. Takip sorusu ve sohbet geçmişini gösterin.
 
-Vurgu: Qdrant araması kullanıcı kimliğiyle filtrelenir; kullanıcı başka hesabın belge veya sohbetine erişemez.
+Qdrant araması kullanıcı kimliğiyle süzülür. Başka hesabın belgesine veya sohbetine erişim yoktur. Yerel yığında iddia, belgedeki alıntıyla sunucuda örtüşmezse cevap budanır veya reddedilir.
 
-## 2:05–2:40 — Güvenli yeniden indeksleme
+## 2:05–2:40 — Yeniden indeksleme
 
-1. Yeniden indeksleme akışını göster.
-2. Yeni vektörlerin önce ayrı bir sürüm olarak yazıldığını anlat.
-3. İşlem başarısız olursa eski çalışan indeksin korunmasını vurgula.
-4. Başarılı işlemden sonra aktif sürümün atomik olarak değiştiğini belirt.
+1. Yeniden indeksleme kuyruğunu gösterin.
+2. Yeni vektörlerin ayrı sürüme yazıldığını anlatın.
+3. Başarısızlıkta eski indeksin kaldığını vurgulayın.
+4. Başarıda aktif sürümün atomik değiştiğini belirtin.
 
 ## 2:40–3:00 — Kapanış
 
-“Bu projede RAG'i tek bir model çağrısı olarak değil; kimlik doğrulama, sahiplik sınırları, kalıcı veri, güvenli dosya işleme ve geri alınabilir indeksleme içeren ürün akışı olarak geliştirdim.”
+SmartDocs AI, RAG’i tek model çağrısı olarak değil; kimlik, sahiplik, kalıcı sohbet, güvenli dosya işleme ve kanıt denetimi olan bir ürün akışı olarak kurar.
 
-## Görüşmede gelebilecek sorular
+## Olası sorular
 
-- Neden PostgreSQL ve Qdrant'ı birlikte kullandın?
-- Chunk boyutu ve örtüşme değerlerini nasıl seçtin?
-- Hallüsinasyonu kaynak gösterimiyle nasıl sınırlandırdın?
-- Yeniden indeksleme yarıda kalırsa veri kaybını nasıl önledin?
+**Neden hem PostgreSQL hem Qdrant?**  
+PostgreSQL sahiplik, sohbet ve indeks durumunu tutar. Qdrant anlamsal aramayı tutar. Vektör deposu tek başına yetki kaynağı değildir.
+
+**Parça boyutu nasıl seçildi?**  
+Kısa alan sorularına yetecek kadar bağlam, uzun kopya yapıştırmayı önleyecek kadar dar. Örtüşme, cümle sınırında kopan iddiaları kurtarır.
+
+**Uydurmayı nasıl sınırlıyorsunuz?**  
+Cevap, getirilen parçalara bağlanır. Kanıt doğrulayıcı alıntının kaynak metinde geçmesini ister; yetersiz örtüşmede güvenli ret üretir. Bu, halüsinasyonu sıfırlamaz; temelsiz iddiayı azaltır.
+
+**İndeks yarıda kalırsa?**  
+Yeni sürüm ayrı koleksiyondadır. İşlem bitmeden eski sürüm okumaya devam eder; başarıda işaret atomik değişir.
