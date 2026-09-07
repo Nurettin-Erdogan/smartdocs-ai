@@ -293,7 +293,16 @@ Bağlam:
                                    prompt,
                                    cancellationToken))
                 {
+                    if (string.IsNullOrEmpty(chunk))
+                    {
+                        continue;
+                    }
+
                     streamedAnswer.Append(chunk);
+                    await WriteStreamEventAsync(
+                        "chunk",
+                        new { Content = chunk },
+                        cancellationToken);
                 }
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -326,11 +335,6 @@ Bağlam:
                 return new EmptyResult();
             }
 
-            await WriteStreamEventAsync(
-                "chunk",
-                new { Content = answerText },
-                cancellationToken);
-
             _context.Messages.Add(new Message
             {
                 ConversationId = conversation.Id,
@@ -340,9 +344,36 @@ Bağlam:
             });
             await _context.SaveChangesAsync(cancellationToken);
 
+            AnswerVerificationResult? streamVerification = null;
+            var parsedStreamAnswer = ClaimVerificationService.TryParseModelAnswer(answerText);
+            if (parsedStreamAnswer is not null)
+            {
+                var evidenceSources = sources
+                    .Select(source => new EvidenceSource(source.Title, source.PageNumber, source.Content))
+                    .ToList();
+                var outcome = ClaimVerificationService.Verify(evidenceSources, parsedStreamAnswer);
+                answerText = GroundedAnswerNormalizer.RestoreSourceSpelling(outcome.Answer, contextText);
+                streamVerification = outcome.Verification;
+
+                var savedMessage = await _context.Messages
+                    .Where(message => message.ConversationId == conversation.Id)
+                    .OrderByDescending(message => message.CreatedAt)
+                    .FirstOrDefaultAsync(CancellationToken.None);
+                if (savedMessage is not null)
+                {
+                    savedMessage.Answer = answerText;
+                    await _context.SaveChangesAsync(CancellationToken.None);
+                }
+            }
+
             await WriteStreamEventAsync(
                 "done",
-                new { ConversationId = conversation.Id },
+                new
+                {
+                    ConversationId = conversation.Id,
+                    Answer = answerText,
+                    Verification = streamVerification
+                },
                 cancellationToken);
             return new EmptyResult();
         }
@@ -386,6 +417,18 @@ Bağlam:
             await _context.SaveChangesAsync(cancellationToken);
         }
 
+        AnswerVerificationResult? verification = null;
+        var parsedModelAnswer = ClaimVerificationService.TryParseModelAnswer(answer);
+        if (parsedModelAnswer is not null)
+        {
+            var evidenceSources = sources
+                .Select(source => new EvidenceSource(source.Title, source.PageNumber, source.Content))
+                .ToList();
+            var outcome = ClaimVerificationService.Verify(evidenceSources, parsedModelAnswer);
+            answer = GroundedAnswerNormalizer.RestoreSourceSpelling(outcome.Answer, contextText);
+            verification = outcome.Verification;
+        }
+
         _context.Messages.Add(new Message
         {
             ConversationId = conversation.Id,
@@ -399,7 +442,8 @@ Bağlam:
         {
             ConversationId = conversation.Id,
             Answer = answer,
-            Sources = sources
+            Sources = sources,
+            Verification = verification
         });
     }
 

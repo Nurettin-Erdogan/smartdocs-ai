@@ -264,6 +264,7 @@ async function streamChat(
   let conversationId = 0;
   let sources: ChatSource[] = [];
   let answer = '';
+  let verification: AnswerVerification | undefined;
   let completed = false;
 
   const processLine = (line: string) => {
@@ -290,6 +291,12 @@ async function streamChat(
       );
     } else if (event.type === 'done') {
       completed = true;
+      if (typeof data.answer === 'string' && data.answer.trim()) {
+        answer = data.answer.trim();
+      }
+      if (data.verification && typeof data.verification === 'object') {
+        verification = data.verification as AnswerVerification;
+      }
     }
   };
 
@@ -311,7 +318,7 @@ async function streamChat(
     throw new ApiError('Yapay zekâ yanıtı beklenmedik şekilde kesildi.', 502, undefined);
   }
 
-  return { conversationId, answer: answer.trim(), sources };
+  return { conversationId, answer: answer.trim(), sources, verification };
 }
 
 const liveApi = {

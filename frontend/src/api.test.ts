@@ -89,7 +89,12 @@ describe('extractApiErrorMessage', () => {
     );
 
     expect(chunks).toEqual(['Merhaba', ' dünya']);
-    expect(result).toEqual({ conversationId: 7, answer: 'Merhaba dünya', sources: [] });
+    expect(result).toEqual({
+      conversationId: 7,
+      answer: 'Merhaba dünya',
+      sources: [],
+      verification: undefined
+    });
     const headers = fetchMock.mock.calls[0]?.[1]?.headers as Headers;
     expect(headers.get('Accept')).toBe('application/x-ndjson');
     expect(fetchMock.mock.calls[0]?.[1]?.signal).toBe(controller.signal);
@@ -97,5 +102,29 @@ describe('extractApiErrorMessage', () => {
       question: 'Selam',
       documentIds: [3, 9]
     });
+  });
+
+  it('prefers the finalized answer from the done event', async () => {
+    const encoder = new TextEncoder();
+    const stream = new ReadableStream({
+      start(controller) {
+        controller.enqueue(encoder.encode(
+          '{"type":"start","data":{"conversationId":9,"sources":[]}}\n'));
+        controller.enqueue(encoder.encode(
+          '{"type":"chunk","data":{"content":"Nurettin Erdogan"}}\n'));
+        controller.enqueue(encoder.encode(
+          '{"type":"done","data":{"conversationId":9,"answer":"Nurettin Erdoğan"}}\n'));
+        controller.close();
+      }
+    });
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(stream, {
+      status: 200,
+      headers: { 'content-type': 'application/x-ndjson' }
+    })));
+
+    const result = await api.askChat({ question: 'Adı nedir?', documentIds: [1] });
+
+    expect(result.answer).toBe('Nurettin Erdoğan');
+    expect(result.verification).toBeUndefined();
   });
 });

@@ -444,6 +444,16 @@ function App() {
       setSelectedConversationId(result.conversationId);
       setSources(result.sources);
       setVerification(result.verification ?? null);
+      setSelectedConversation((current) => {
+        if (!current) return current;
+        return {
+          ...current,
+          messages: current.messages.map((message) =>
+            message.id === temporaryMessageId
+              ? { ...message, answer: result.answer }
+              : message)
+        };
+      });
       setQuestion('');
       setNotification({
         kind: 'success',
