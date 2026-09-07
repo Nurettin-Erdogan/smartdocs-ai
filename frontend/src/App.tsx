@@ -347,6 +347,11 @@ function App() {
   };
 
   const handleDelete = async (document: DocumentItem) => {
+    const confirmed = window.confirm(
+      `"${document.title}" belgesi kalıcı olarak silinecek. Devam edilsin mi?`
+    );
+    if (!confirmed) return;
+
     setDocumentAction({ id: document.id, kind: 'delete' });
     setNotification(null);
     try {
@@ -919,6 +924,44 @@ function App() {
             isLoading={conversationLoading}
             isNewConversation={selectedConversationId === null}
           />
+
+          {sources.length > 0 && (
+            <section className="sources-panel" aria-label="Yanıt kaynakları">
+              <div className="sources-heading">
+                <div>
+                  <span className="eyebrow">KAYNAKLAR</span>
+                  <h4>Yanıtın dayandığı belge parçaları</h4>
+                </div>
+                <span className="sources-count">{sources.length} kaynak</span>
+              </div>
+              <div className="sources-list">
+                {sources.map((source, index) => (
+                  <article key={`${source.documentId}-${source.chunkIndex}-${index}`} className="source-card">
+                    <div className="source-card-head">
+                      <strong>{source.title}</strong>
+                      <span>
+                        s. {source.pageNumber}
+                        {Number.isFinite(source.score) ? ` · %${Math.round(source.score * 100)}` : ''}
+                      </span>
+                    </div>
+                    <p>{source.content.length > 220 ? `${source.content.slice(0, 220).trim()}…` : source.content}</p>
+                    <button
+                      type="button"
+                      className="ghost-btn"
+                      onClick={() => setPreviewTarget({
+                        documentId: source.documentId,
+                        title: source.title,
+                        pageNumber: source.pageNumber,
+                        content: source.content
+                      })}
+                    >
+                      PDF’de aç
+                    </button>
+                  </article>
+                ))}
+              </div>
+            </section>
+          )}
 
           {verification && (
             <section className={`evidence-panel ${verification.status}`} aria-label="Kanıt denetimi">

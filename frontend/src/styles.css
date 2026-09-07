@@ -268,3 +268,16 @@ button:focus-visible,.file-dropzone:focus-within{outline:3px solid rgba(40,100,2
 .document-error{padding:.55rem .65rem;border-radius:10px;color:#a52f49!important;background:#fff0f3;font-size:.72rem!important}
 @keyframes processing-shine{from{transform:translateX(-100%)}to{transform:translateX(100%)}}
 @media (prefers-reduced-motion:reduce){.processing-track span::after{animation:none}}
+
+.sources-panel{display:grid;gap:.85rem;padding:1rem;border:1px solid var(--line);border-radius:18px;background:linear-gradient(160deg,#f7f9ff,#ffffff)}
+.sources-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:1rem}
+.sources-heading h4{margin:.2rem 0 0;color:var(--ink);font-family:Georgia,"Times New Roman",serif;font-size:1.02rem}
+.sources-count{flex:0 0 auto;color:var(--ink-soft);font-size:.72rem;font-weight:700}
+.sources-list{display:grid;gap:.75rem}
+.source-card{display:grid;gap:.55rem;padding:.85rem .9rem;border:1px solid #e7ecf6;border-radius:14px;background:#fff}
+.source-card-head{display:flex;align-items:baseline;justify-content:space-between;gap:.75rem}
+.source-card-head strong{color:var(--ink);font-size:.86rem}
+.source-card-head span{color:var(--ink-soft);font-size:.72rem;white-space:nowrap}
+.source-card p{margin:0;color:var(--ink-soft);font-size:.78rem;line-height:1.55}
+.source-card .ghost-btn{justify-self:start;padding:.35rem .6rem;font-size:.72rem}
+@media (max-width:700px){.sources-heading{flex-direction:column;gap:.35rem}.source-card-head{flex-direction:column;align-items:flex-start;gap:.2rem}}
