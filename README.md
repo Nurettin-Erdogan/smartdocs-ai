@@ -12,7 +12,9 @@
   <img src="https://img.shields.io/badge/.NET-10-0f766e.svg" alt=".NET 10">
 </p>
 
-SmartDocs AI, PDF belgeleri üzerinde yalnızca cevap üretmekle kalmayan; yanıttaki iddiaları birebir belge alıntılarıyla denetleyen, kanıt yetersizse cevabı reddeden yerel çalışabilir bir RAG uygulamasıdır.
+**PDF'ine soru sor, yanıtın dayandığı metni incele.**
+
+SmartDocs AI, belge içeriğinden yanıt üreten bir PDF asistanıdır. Odak noktası, akıcı bir cevap göstermekten ziyade cevabı kaynak alıntısıyla birlikte inceleyebilmektir. Tarayıcıdan denenebilen Gemini destekli sürüm ve Docker ile çalıştırılan yerel RAG kurulumu aynı depoda bulunur.
 
 <p align="center">
   <a href="https://smartdocs-ai-henna.vercel.app"><strong>Canlı vitrin demosu →</strong></a>
@@ -33,22 +35,53 @@ SmartDocs AI, PDF belgeleri üzerinde yalnızca cevap üretmekle kalmayan; yanı
 </p>
 <p align="center"><sub>Canlı vitrin, PDF’yi tarayıcıda işler ve ilgili metin parçalarından yapay zekâ destekli, kaynaklı cevap üretir.</sub></p>
 
-## Özet
+## Bir dakikada dene
 
-| | |
-| --- | --- |
-| **Problem** | PDF’lerde arama yapan ekiplerin ya kaynak denetimsiz sohbet botlarına ya da ağır bulut RAG’e mahkûm kalması |
-| **Çözüm** | Ollama, Qdrant ve PostgreSQL ile çalışan; cevaplarını sayfa/parça düzeyinde kaynaklandıran ve kanıtı sunucuda doğrulayan yerel RAG |
-| **Canlı vitrin** | PDF tarayıcıda kalır; seçilen metin parçaları Google Gemini’ye gider (`vercel.json` → `npm run build:demo` → `.env.demo`) |
-| **Tam gizlilik** | Docker + Ollama + Qdrant — belge ve model makinede kalır |
-| **Ayırt edici özellik** | İddia–alıntı örtüşmesini sunucuda doğrulayan kanıt denetimi; yetersiz kanıtta güvenli ret |
-| **Doğrulama** | GitHub Actions, CodeQL, backend/frontend testleri, Docker Compose |
+1. [Uygulamayı aç](https://smartdocs-ai-henna.vercel.app) ve paylaşılabilir, metin içeren kendi PDF'ini seç. Hazır belge kullanmak zorunda değilsin.
+2. Belgede cevabını bildiğin bir soru sor: örneğin **“Başvuru için gereken belgeler neler?”**
+3. Yanıtı ilgili sayfadaki metinle karşılaştır. Ardından belgede bulunmayan bir bilgiyi sorarak sınırlarını dene.
 
-SmartDocs AI, RAG’i tek bir model çağrısı olarak bırakmaz. Kimlik, sahiplik, kalıcı sohbet, dosya işleme ve kanıt denetimi aynı üründe durur.
+**Veri akışı:** Canlı sürümde PDF dosyası tarayıcıda işlenir; AI isteğinde soru, seçilen belge metinleri ve yakın sohbet geçmişi Vercel üzerinden Google Gemini'ye gönderilir. Bu sürüm tamamen yerel değildir. Gizli belge yüklemeden önce bunu dikkate alın.
+
+## Projenin teknik odağı
+
+**Problem:** Belge hakkında üretilen bir cevabın hangi metne dayandığını görmek ve desteklenmeyen ifadeleri ayırt etmek.
+
+**Yaklaşım:** Modelden cevapla birlikte iddia, kaynak numarası ve alıntı istenir. Sunucu, alıntının gönderilen kaynakta bulunmasını ve iddia ile kelime örtüşmesini kontrol eder. Kısmi eşleşmede desteklenen iddialar gösterilir; eşleşme yoksa yetersiz kanıt yanıtı döner.
+
+**Önemli sınır:** Bu kontrol bir doğruluk garantisi değildir. Kelime örtüşmesi anlamsal doğruluğu kanıtlamaz; ayrıca denetim modelin listelediği iddialara uygulanır, serbest cevap metninin her cümlesini bağımsız olarak doğrulamaz. Son kontrol belge üzerinden yapılmalıdır.
+
+## Canlı sürüm ve yerel kurulum
+
+| | Canlı sürüm · Vercel | Yerel kurulum · Docker |
+| --- | --- | --- |
+| Kullanım | Tarayıcıdan, vitrin oturumuyla | Kendi kullanıcı hesabıyla |
+| PDF işleme | Tarayıcıda metin çıkarma ve parça seçimi | ASP.NET Core + PdfPig |
+| Yanıt üretimi | Google Gemini API; bazı soru türlerinde yerel kurallar | Ollama |
+| Belge arama | Tarayıcıdaki metin eşleştirme | Ollama embedding + Qdrant vektör araması |
+| Veri saklama | Vitrin oturumunun belleği; kalıcı arşiv değildir | PostgreSQL, Qdrant ve dosya hacimleri |
+| Dışarı giden içerik | AI çağrısında soru, seçilen metinler ve yakın sohbet geçmişi | Varsayılan yerel servislerle belge/model işlemleri makinede |
+
+Canlı sürümde PostgreSQL, Qdrant ve Ollama çalıştırılmaz. Gemini modeli sunucudaki `GEMINI_MODEL` ayarıyla seçilir; depodaki varsayılan değer canlı ortamın hangi modeli kullandığını tek başına kanıtlamaz.
+
+### Mühendislik kararları
+
+- **İki çalışma yolu:** Kurulumsuz deneme için Vercel; kullanıcı sahipliği ve kalıcı veri için tam backend. Bunun karşılığında iki akışın davranışlarını ayrı test etmek gerekir.
+- **Model çıktısına ek kontrol:** Alıntı eşleşmesi sunucuda kontrol edilir. Amaç desteksiz cevabı azaltmaktır; anlam doğrulamasının yerine geçmez. [Canlı yanıt akışı](api/answer.ts) · [Backend kanıt kontrolü](backend/SmartDocsAI.API/Services/ClaimVerificationService.cs)
+- **Servis hatasında sınırlı devam:** Gemini çağrısı başarısız olduğunda tarayıcıdaki yerel metin yanıtına dönülür. Bu yanıt model tarafından üretilmiş gibi değerlendirilmemelidir. [Vitrin akışı](frontend/src/demo.ts)
+- **Tam kurulumda veri sahipliği:** Belge ve sohbet erişimi kullanıcıya göre sınırlandırılır; yeniden indeksleme tamamlanmadan eski indeks korunur. [Mimari](docs/system-architecture.md)
+
+### Mevcut sınırlar
+
+- Otomatik OCR yoktur; yalnızca taranmış görüntü içeren PDF'ler için önce OCR uygulanmalıdır.
+- Çok sütunlu sayfalar, tablolar ve bozuk PDF metin sırası sonuç kalitesini düşürebilir.
+- Canlı AI yanıtları Gemini erişimine ve kotasına bağlıdır; yerel yedek yanıt aynı kalitede değildir.
+- Vitrin oturumu kalıcı belge deposu değildir; sayfa yenilendiğinde yeniden yükleme gerekebilir.
+- Kanıt eşleşme yüzdesi bir doğruluk olasılığı veya model başarı oranı değildir.
 
 ## English
 
-SmartDocs AI is a sourced PDF RAG assistant: claims are checked against real document quotes and rejected when evidence is weak. **Live demo** ([smartdocs-ai-henna.vercel.app](https://smartdocs-ai-henna.vercel.app)): PDF stays in the browser; selected chunks go to Google Gemini for the answer. **Full local stack**: ASP.NET Core, React, PostgreSQL, Qdrant, Ollama via Docker — data and models stay on your machine.
+SmartDocs AI is a PDF assistant with source inspection and heuristic claim–quote checks, not a factual correctness guarantee. **Live demo** ([smartdocs-ai-henna.vercel.app](https://smartdocs-ai-henna.vercel.app)): PDFs are parsed in the browser; AI requests send the question, selected text and recent conversation history to Gemini through Vercel. **Local stack**: ASP.NET Core, React, PostgreSQL, Qdrant and Ollama via Docker. The browser demo is not a persistent document archive.
 
 Repository also ships a **Vercel showcase mode** that runs without Ollama/Qdrant.
 
@@ -70,7 +103,7 @@ PDF → metin çıkarma → parçalara ayırma → Ollama embedding
 - Qdrant Query API ile kullanıcıya ait belgelerde filtreli arama
 - Belge, sayfa, parça ve benzerlik skoru içeren kaynak gösterimi
 - İddia bazlı kanıt haritası; birebir alıntı ve iddia-alıntı örtüşmesini sunucuda doğrulama
-- Kanıtı doğrulanmayan iddiaları kullanıcıya cevap olarak sunmayan güvenli ret akışı
+- Modelin bildirdiği iddialar için alıntı eşleşmesine göre kısmi cevap veya yetersiz kanıt akışı
 - Kanıt denetiminden ilgili PDF sayfasına açılan, metni vurgulayan güvenli önizleme
 - Tam sohbet geçmişi, yeni sohbet ve oturum süresi yönetimi
 - Başarısız indekslemeyi tekrar deneme ve durum takibi
@@ -169,13 +202,15 @@ npm ci
 npm run dev
 ```
 
-Yalnızca portföy arayüzünü örnek verilerle çalıştırmak için:
+Backend olmadan tarayıcıda PDF yüklenebilen vitrin arayüzünü çalıştırmak için:
 
 ```powershell
 Set-Location frontend
 npm run build:demo
 npm run preview
 ```
+
+Bu komutlar tek başına Vercel'in `/api/answer` fonksiyonunu çalıştırmaz. Yerel Vite önizlemesinde Gemini yanıtı beklemeyin; AI fonksiyonu olmadan yerel metin yanıtı kullanılır.
 
 Vite `http://localhost:5173` adresinde çalışır ve `/api` isteklerini `http://localhost:5129` adresine yönlendirir.
 
