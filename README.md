@@ -7,156 +7,152 @@
 <p align="center">
   <a href="https://github.com/Nurettin-Erdogan/smartdocs-ai/actions/workflows/ci.yml"><img src="https://github.com/Nurettin-Erdogan/smartdocs-ai/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI durumu"></a>
   <a href="https://github.com/Nurettin-Erdogan/smartdocs-ai/actions/workflows/codeql.yml"><img src="https://github.com/Nurettin-Erdogan/smartdocs-ai/actions/workflows/codeql.yml/badge.svg?branch=main" alt="CodeQL güvenlik analizi"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/lisans-MIT-0f766e.svg" alt="MIT Lisansı"></a>
-  <a href="https://smartdocs-ai-henna.vercel.app"><img src="https://img.shields.io/badge/canl%C4%B1%20vitrin-Vercel-0f766e.svg" alt="Canlı vitrin"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-0f766e.svg" alt="MIT License"></a>
+  <a href="https://smartdocs-ai-henna.vercel.app"><img src="https://img.shields.io/badge/live-Vercel-0f766e.svg" alt="Canlı demo"></a>
   <img src="https://img.shields.io/badge/.NET-10-0f766e.svg" alt=".NET 10">
 </p>
 
-**PDF'ine soru sor, yanıtın dayandığı metni incele.**
+**PDF'e soru sor, cevabın hangi metne dayandığını gör.**
 
-SmartDocs AI, belge içeriğinden yanıt üreten bir PDF asistanıdır. Odak noktası, akıcı bir cevap göstermekten ziyade cevabı kaynak alıntısıyla birlikte inceleyebilmektir. Tarayıcıdan denenebilen Gemini destekli sürüm ve Docker ile çalıştırılan yerel RAG kurulumu aynı depoda bulunur.
+SmartDocs AI; PDF belgelerinden kaynaklı cevap üreten, cevabın dayandığı sayfa ve metin parçalarını incelemeyi sağlayan bir **RAG tabanlı belge asistanıdır**. Projede hem tarayıcıdan hemen denenebilen Gemini destekli bir vitrin sürümü hem de Docker ile çalışan tam yerel **ASP.NET Core + PostgreSQL + Qdrant + Ollama** kurulumu bulunur.
 
 <p align="center">
-  <a href="https://smartdocs-ai-henna.vercel.app"><strong>Canlı vitrin demosu →</strong></a>
+  <a href="https://smartdocs-ai-henna.vercel.app"><strong>Canlı demoyu aç →</strong></a>
   &nbsp;·&nbsp;
   <a href="#docker-ile-hızlı-başlangıç"><strong>Yerelde çalıştır →</strong></a>
   &nbsp;·&nbsp;
-  <a href="docs/demo-guide.md"><strong>Canlı tur</strong></a>
+  <a href="docs/system-architecture.md"><strong>Mimari</strong></a>
   &nbsp;·&nbsp;
-  <a href="docs/system-architecture.md">Mimari</a>
-  &nbsp;·&nbsp;
-  <a href="#test-ve-doğrulama">Testler</a>
-  &nbsp;·&nbsp;
-  <a href="CONTRIBUTING.md">Katkı rehberi</a>
+  <a href="docs/demo-guide.md"><strong>Demo rehberi</strong></a>
 </p>
+
+## Kısa özet
+
+| | |
+| --- | --- |
+| **Problem** | LLM cevabının belge içinde hangi bilgiye dayandığını görmek zor olabilir. |
+| **Çözüm** | Kaynak parçası, sayfa referansı ve iddia–alıntı kontrolüyle incelenebilir cevap akışı. |
+| **Backend** | ASP.NET Core 10, EF Core, PostgreSQL |
+| **RAG** | PdfPig, Ollama embeddings, Qdrant semantic search, Ollama generation |
+| **Frontend** | React 19, TypeScript, Vite |
+| **Güvenlik** | JWT, sahiplik kontrolleri, rate limiting, PDF doğrulama, CodeQL |
+| **DevOps** | Docker Compose, GitHub Actions CI, çok aşamalı production image |
+| **Canlı demo** | Vercel + Google Gemini; kurulum gerektirmeden denenebilir |
 
 <p align="center">
-  <img src="docs/screenshots/sourced-answer-demo.jpg" alt="SmartDocs AI belge listesi, kaynaklı cevap ve sayfa referansları" width="1100">
+  <img src="docs/screenshots/sourced-answer-demo.jpg" alt="SmartDocs AI kaynaklı cevap ve sayfa referansları" width="1100">
 </p>
-<p align="center"><sub>Canlı vitrin, PDF’yi tarayıcıda işler ve ilgili metin parçalarından yapay zekâ destekli, kaynaklı cevap üretir.</sub></p>
 
-## Bir dakikada dene
+## Neler gösteriyor?
 
-1. [Uygulamayı aç](https://smartdocs-ai-henna.vercel.app) ve paylaşılabilir, metin içeren kendi PDF'ini seç. Hazır belge kullanmak zorunda değilsin.
-2. Belgede cevabını bildiğin bir soru sor: örneğin **“Başvuru için gereken belgeler neler?”**
-3. Yanıtı ilgili sayfadaki metinle karşılaştır. Ardından belgede bulunmayan bir bilgiyi sorarak sınırlarını dene.
+- PDF metnini çıkarma, parçalara ayırma ve indeksleme
+- Ollama ile embedding üretimi
+- Qdrant üzerinde kullanıcıya ait belgelerde filtreli semantic search
+- RAG bağlamından kaynaklı cevap üretimi
+- Belge, sayfa, parça ve benzerlik skoru içeren kaynak gösterimi
+- İddia bazlı alıntı eşleştirme ve yetersiz kanıt akışı
+- İlgili PDF sayfasını açan ve metni vurgulayan kaynak önizleme
+- JWT authentication ve kullanıcı bazlı belge/sohbet sahipliği
+- Başarısız indeksleme için retry ve güvenli yeniden indeksleme
+- Backend + frontend testleri, CI ve CodeQL taraması
 
-**Veri akışı:** Canlı sürümde PDF dosyası tarayıcıda işlenir; AI isteğinde soru, seçilen belge metinleri ve yakın sohbet geçmişi Vercel üzerinden Google Gemini'ye gönderilir. Bu sürüm tamamen yerel değildir. Gizli belge yüklemeden önce bunu dikkate alın.
-
-## Projenin teknik odağı
-
-**Problem:** Belge hakkında üretilen bir cevabın hangi metne dayandığını görmek ve desteklenmeyen ifadeleri ayırt etmek.
-
-**Yaklaşım:** Modelden cevapla birlikte iddia, kaynak numarası ve alıntı istenir. Sunucu, alıntının gönderilen kaynakta bulunmasını ve iddia ile kelime örtüşmesini kontrol eder. Kısmi eşleşmede desteklenen iddialar gösterilir; eşleşme yoksa yetersiz kanıt yanıtı döner.
-
-**Önemli sınır:** Bu kontrol bir doğruluk garantisi değildir. Kelime örtüşmesi anlamsal doğruluğu kanıtlamaz; ayrıca denetim modelin listelediği iddialara uygulanır, serbest cevap metninin her cümlesini bağımsız olarak doğrulamaz. Son kontrol belge üzerinden yapılmalıdır.
-
-## Canlı sürüm ve yerel kurulum
-
-| | Canlı sürüm · Vercel | Yerel kurulum · Docker |
-| --- | --- | --- |
-| Kullanım | Tarayıcıdan, vitrin oturumuyla | Kendi kullanıcı hesabıyla |
-| PDF işleme | Tarayıcıda metin çıkarma ve parça seçimi | ASP.NET Core + PdfPig |
-| Yanıt üretimi | Google Gemini API; bazı soru türlerinde yerel kurallar | Ollama |
-| Belge arama | Tarayıcıdaki metin eşleştirme | Ollama embedding + Qdrant vektör araması |
-| Veri saklama | Vitrin oturumunun belleği; kalıcı arşiv değildir | PostgreSQL, Qdrant ve dosya hacimleri |
-| Dışarı giden içerik | AI çağrısında soru, seçilen metinler ve yakın sohbet geçmişi | Varsayılan yerel servislerle belge/model işlemleri makinede |
-
-Canlı sürümde PostgreSQL, Qdrant ve Ollama çalıştırılmaz. Gemini modeli sunucudaki `GEMINI_MODEL` ayarıyla seçilir; depodaki varsayılan değer canlı ortamın hangi modeli kullandığını tek başına kanıtlamaz.
-
-### Mühendislik kararları
-
-- **İki çalışma yolu:** Kurulumsuz deneme için Vercel; kullanıcı sahipliği ve kalıcı veri için tam backend. Bunun karşılığında iki akışın davranışlarını ayrı test etmek gerekir.
-- **Model çıktısına ek kontrol:** Alıntı eşleşmesi sunucuda kontrol edilir. Amaç desteksiz cevabı azaltmaktır; anlam doğrulamasının yerine geçmez. [Canlı yanıt akışı](api/answer.ts) · [Backend kanıt kontrolü](backend/SmartDocsAI.API/Services/ClaimVerificationService.cs)
-- **Servis hatasında sınırlı devam:** Gemini çağrısı başarısız olduğunda tarayıcıdaki yerel metin yanıtına dönülür. Bu yanıt model tarafından üretilmiş gibi değerlendirilmemelidir. [Vitrin akışı](frontend/src/demo.ts)
-- **Tam kurulumda veri sahipliği:** Belge ve sohbet erişimi kullanıcıya göre sınırlandırılır; yeniden indeksleme tamamlanmadan eski indeks korunur. [Mimari](docs/system-architecture.md)
-
-### Mevcut sınırlar
-
-- Otomatik OCR yoktur; yalnızca taranmış görüntü içeren PDF'ler için önce OCR uygulanmalıdır.
-- Çok sütunlu sayfalar, tablolar ve bozuk PDF metin sırası sonuç kalitesini düşürebilir.
-- Canlı AI yanıtları Gemini erişimine ve kotasına bağlıdır; yerel yedek yanıt aynı kalitede değildir.
-- Vitrin oturumu kalıcı belge deposu değildir; sayfa yenilendiğinde yeniden yükleme gerekebilir.
-- Kanıt eşleşme yüzdesi bir doğruluk olasılığı veya model başarı oranı değildir.
-
-## English
-
-SmartDocs AI is a PDF assistant with source inspection and heuristic claim–quote checks, not a factual correctness guarantee. **Live demo** ([smartdocs-ai-henna.vercel.app](https://smartdocs-ai-henna.vercel.app)): PDFs are parsed in the browser; AI requests send the question, selected text and recent conversation history to Gemini through Vercel. **Local stack**: ASP.NET Core, React, PostgreSQL, Qdrant and Ollama via Docker. The browser demo is not a persistent document archive.
-
-Repository also ships a **Vercel showcase mode** that runs without Ollama/Qdrant.
+## Çalışma akışı
 
 ```text
-Canlı vitrin: PDF → tarayıcıda metin çıkarma → ilgili parçaları seçme
-             → Vercel Function → Google Gemini API → kaynaklı cevap
+Tam yerel kurulum
 
-Tam kurulum:
-PDF → metin çıkarma → parçalara ayırma → Ollama embedding
-    → Qdrant anlamsal arama → Ollama cevap üretimi → kaynaklı cevap
+PDF
+ └─> PdfPig ile metin çıkarma
+      └─> chunking
+           └─> Ollama embedding
+                └─> Qdrant vector search
+                     └─> Ollama cevap üretimi
+                          └─> kaynak + sayfa + kanıt kontrolü
 ```
 
-## Öne çıkanlar
+```text
+Canlı vitrin
 
-- React 19 + TypeScript ile duyarlı web arayüzü
-- ASP.NET Core 10 API ve PostgreSQL kalıcı veri katmanı
-- PdfPig ile PDF metni çıkarma ve örtüşmeli parçalara ayırma
-- Ollama `/api/embed` ve `/api/generate` entegrasyonu
-- Qdrant Query API ile kullanıcıya ait belgelerde filtreli arama
-- Belge, sayfa, parça ve benzerlik skoru içeren kaynak gösterimi
-- İddia bazlı kanıt haritası; birebir alıntı ve iddia-alıntı örtüşmesini sunucuda doğrulama
-- Modelin bildirdiği iddialar için alıntı eşleşmesine göre kısmi cevap veya yetersiz kanıt akışı
-- Kanıt denetiminden ilgili PDF sayfasına açılan, metni vurgulayan güvenli önizleme
-- Tam sohbet geçmişi, yeni sohbet ve oturum süresi yönetimi
-- Başarısız indekslemeyi tekrar deneme ve durum takibi
-- Yeni vektörleri önce yazarak eski indeksi koruyan güvenli yeniden indeksleme
-- JWT doğrulama, sahiplik kontrolleri ve endpoint bazlı hız sınırlama
-- 100 MB sınırı, PDF imza kontrolü, güvenli fiziksel dosya adı ve işlem sınırları
-- Docker Compose, çok aşamalı üretim imajı ve GitHub Actions CI
-- Backend ve frontend için otomatik test kapsamı
+PDF
+ └─> tarayıcıda metin çıkarma
+      └─> ilgili metin parçalarını seçme
+           └─> Vercel Function
+                └─> Google Gemini
+                     └─> kaynaklı cevap
+```
+
+## Canlı sürüm ve tam yerel kurulum
+
+| | Canlı vitrin | Yerel kurulum |
+| --- | --- | --- |
+| Amaç | Hızlı ürün demosu | Tam RAG mimarisini çalıştırmak |
+| PDF işleme | Tarayıcı | ASP.NET Core + PdfPig |
+| Model | Google Gemini | Ollama |
+| Arama | Tarayıcıdaki metin seçimi | Ollama embeddings + Qdrant |
+| Kalıcı veri | Yok | PostgreSQL + Qdrant + dosya hacimleri |
+| Kullanıcı hesabı | Vitrin oturumu | JWT tabanlı gerçek kullanıcı hesabı |
+| Veri akışı | Seçilen metin AI isteğinde Gemini'ye gider | Varsayılan kurulumda model servisleri yereldir |
+
+> **Gizlilik notu:** Canlı demo tamamen yerel değildir. AI çağrısında soru, seçilen belge metinleri ve yakın sohbet geçmişi Vercel üzerinden Gemini'ye gönderilir. Gizli belgeler için tam yerel kurulum tercih edilmelidir.
+
+## Mühendislik kararları
+
+### Kaynak gösterimi tek başına yeterli değil
+
+Modelden cevapla birlikte iddia, kaynak numarası ve alıntı istenir. Sunucu, verilen alıntının gerçekten kaynak metninde bulunup bulunmadığını ve iddia ile belirli bir kelime örtüşmesi taşıyıp taşımadığını kontrol eder.
+
+Bu mekanizma **doğruluk garantisi değildir**. Amaç, model çıktısını doğrudan kabul etmek yerine kullanıcıya inceleyebileceği bir kanıt izi vermektir.
+
+### Güvenli yeniden indeksleme
+
+Bir belge yeniden indekslenirken yeni vektörler hazırlanıp başarıyla yazılmadan önce eski indeks kaldırılmaz. Böylece başarısız bir yeniden indeksleme belgenin çalışan aramasını hemen bozmaz.
+
+### Kullanıcı izolasyonu
+
+Belge, sohbet ve Qdrant aramaları kullanıcı sahipliğiyle sınırlandırılır. Bir kullanıcı başka bir kullanıcının belge veya sohbet verisine erişemez.
+
+### Hata durumunda kontrollü davranış
+
+İndeksleme işlemleri durum bazlı takip edilir; geçici hatalar retry akışına alınabilir. Canlı vitrinde Gemini kullanılamadığında sınırlı yerel metin davranışı devreye girebilir ve bu cevap AI cevabı gibi sunulmaz.
 
 ## Mimari
 
 | Katman | Teknoloji | Sorumluluk |
 | --- | --- | --- |
-| Arayüz | React, TypeScript, Vite | Kimlik doğrulama, belge ve sohbet deneyimi |
-| API | ASP.NET Core 10 | Yetkilendirme, PDF akışı, RAG orkestrasyonu |
-| İlişkisel veri | PostgreSQL, EF Core | Kullanıcı, belge, parça ve sohbet kayıtları |
-| Vektör arama | Qdrant | Embedding saklama ve benzerlik araması |
-| Yerel yapay zekâ | Ollama | Embedding ve Türkçe cevap üretimi |
+| Frontend | React 19, TypeScript, Vite | Auth, belge yönetimi, sohbet ve kaynak görüntüleme |
+| API | ASP.NET Core 10 | Yetkilendirme, PDF pipeline, RAG orkestrasyonu |
+| Veri | PostgreSQL, EF Core | Kullanıcı, belge, chunk ve sohbet kayıtları |
+| Vector DB | Qdrant | Embedding saklama ve semantic search |
+| AI | Ollama | Embedding ve yerel cevap üretimi |
+| PDF | PdfPig | Metin çıkarma ve sayfa eşleme |
+| CI/Security | GitHub Actions, CodeQL | Test, build ve güvenlik analizi |
 
-Ayrıntılı akış için [sistem mimarisi](docs/system-architecture.md) belgesine bakın.
+Daha ayrıntılı teknik akış: [docs/system-architecture.md](docs/system-architecture.md)
 
 ## Docker ile hızlı başlangıç
 
-Gereksinim: Docker Desktop. Ollama ve gerekli modeller uygulamayla birlikte Docker içinde hazırlanır; ayrıca Ollama kurmanız gerekmez.
+**Gereksinim:** Docker Desktop.
 
-Windows'ta en kolay kurulum için `start-smartdocs.cmd` dosyasına çift tıklayın. Betik güvenli veritabanı/JWT anahtarlarını otomatik üretir, tüm servisleri ve modelleri hazırlar, bağımlılıkları denetler ve uygulamayı tarayıcıda açar.
-
-PowerShell üzerinden aynı işlem:
+Windows'ta en kolay yol:
 
 ```powershell
 .\start-smartdocs.ps1 -TarayiciyiAc
 ```
 
-Elle kurulum yapmak isterseniz proje kökünde:
+veya `start-smartdocs.cmd` dosyasını çalıştırın.
+
+Manuel kurulum için:
 
 ```powershell
 Copy-Item .env.example .env
 ```
 
-`.env` içindeki şu değerleri mutlaka doldurun:
+`.env` içinde güçlü değerler belirleyin:
 
-- `POSTGRES_PASSWORD`: güçlü bir PostgreSQL parolası
-- `JWT_TOKEN_KEY`: en az 64 baytlık rastgele bir anahtar
+- `POSTGRES_PASSWORD`
+- `JWT_TOKEN_KEY`
 
-Windows PowerShell ile uygun JWT anahtarı üretme örneği:
-
-```powershell
-$bytes = New-Object byte[] 64
-[Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($bytes)
-[Convert]::ToBase64String($bytes)
-```
-
-Servisleri başlatın:
+Ardından:
 
 ```powershell
 docker compose up --build
@@ -164,35 +160,29 @@ docker compose exec ollama ollama pull nomic-embed-text
 docker compose exec ollama ollama pull qwen2.5:3b
 ```
 
-Uygulama varsayılan olarak `http://localhost:8080` adresinde açılır. İlk kullanıcıyı arayüzdeki **Kayıt Ol** sekmesinden oluşturabilirsiniz.
+Uygulama varsayılan olarak:
 
-İlk model indirmesi birkaç dakika sürebilir; sonraki açılışlarda modeller kalıcı Docker hacminden kullanılır.
+```text
+http://localhost:8080
+```
+
+adresinde açılır.
 
 ## Yerel geliştirme
 
 Gereksinimler:
 
 - .NET 10 SDK
-- Node.js 24 (Node 20 de mevcut frontend için uygundur)
-- PostgreSQL 17+
-- Qdrant 1.18+
-- Ollama ve `nomic-embed-text`, `qwen2.5:3b` modelleri
-
-Backend gizli ayarlarını kaynak koda yazmadan tanımlayın:
-
-```powershell
-dotnet user-secrets set "ConnectionStrings:DefaultConnection" "Host=localhost;Port=5432;Database=SmartDocsAI_Db;Username=postgres;Password=PAROLA" --project backend\SmartDocsAI.API
-dotnet user-secrets set "JwtSettings:TokenKey" "EN_AZ_64_BAYT_RASTGELE_ANAHTAR" --project backend\SmartDocsAI.API
-dotnet user-secrets set "SeedData:AdminPassword" "GELISTIRME_ADMIN_PAROLASI" --project backend\SmartDocsAI.API
-```
+- Node.js 20+
+- PostgreSQL
+- Qdrant
+- Ollama
 
 Backend:
 
 ```powershell
 dotnet run --project backend\SmartDocsAI.API
 ```
-
-Development ortamında migration'lar otomatik uygulanır. Veritabanında kullanıcı yoksa `SeedData:AdminPassword` ile `admin@smartdocs.ai` hesabı oluşturulur.
 
 Frontend:
 
@@ -202,25 +192,17 @@ npm ci
 npm run dev
 ```
 
-Backend olmadan tarayıcıda PDF yüklenebilen vitrin arayüzünü çalıştırmak için:
+## Test ve kalite kapıları
 
-```powershell
-Set-Location frontend
-npm run build:demo
-npm run preview
-```
-
-Bu komutlar tek başına Vercel'in `/api/answer` fonksiyonunu çalıştırmaz. Yerel Vite önizlemesinde Gemini yanıtı beklemeyin; AI fonksiyonu olmadan yerel metin yanıtı kullanılır.
-
-Vite `http://localhost:5173` adresinde çalışır ve `/api` isteklerini `http://localhost:5129` adresine yönlendirir.
-
-## Test ve doğrulama
-
-Depo; backend ve frontend testlerini, TypeScript tip kontrolünü, üretim derlemesini ve Docker imajı paketlemesini CI üzerinde ayrı kalite kapıları olarak çalıştırır. CodeQL ayrıca C# ve JavaScript/TypeScript kaynaklarını tarar.
+Backend testleri:
 
 ```powershell
 dotnet test tests\SmartDocsAI.API.Tests\SmartDocsAI.API.Tests.csproj --configuration Release
+```
 
+Frontend:
+
+```powershell
 Set-Location frontend
 npm ci
 npm run typecheck
@@ -228,85 +210,78 @@ npm test
 npm run build
 ```
 
-CI aynı kontrolleri çalıştırır ve son aşamada üretim Docker imajını derler.
+CI pipeline şu kontrolleri çalıştırır:
+
+- backend testleri
+- frontend typecheck
+- frontend testleri
+- production build
+- Docker image build
+- CodeQL ile C# ve JavaScript/TypeScript analizi
 
 ## Temel API
 
 | Metot | Yol | Açıklama |
 | --- | --- | --- |
-| `POST` | `/api/auth/register` | Hesap oluşturur ve JWT döndürür |
-| `POST` | `/api/auth/login` | Oturum açar ve JWT döndürür |
+| `POST` | `/api/auth/register` | Hesap oluşturur |
+| `POST` | `/api/auth/login` | JWT oturumu açar |
 | `GET` | `/api/documents` | Kullanıcının belgelerini listeler |
-| `GET` | `/api/documents/{id}/file` | Kullanıcıya ait PDF'yi önizleme için aktarır |
-| `POST` | `/api/documents/upload` | PDF'yi kabul eder ve arka plan kuyruğuna alır |
-| `DELETE` | `/api/documents/{id}` | Belgeyi ve vektörlerini siler |
+| `POST` | `/api/documents/upload` | PDF yükler ve işleme kuyruğuna alır |
 | `POST` | `/api/documents/{id}/reindex` | Belgeyi yeniden indeksler |
-| `POST` | `/api/chat` | Kaynaklı cevap üretir |
-| `GET` | `/api/chat/history` | Son 50 sohbetin özetini getirir |
-| `GET` | `/api/chat/{conversationId}` | Bir sohbetin tüm mesajlarını getirir |
-| `GET` | `/api/home` | Basit canlılık yanıtı verir |
+| `DELETE` | `/api/documents/{id}` | Belgeyi ve ilgili vektörleri siler |
+| `POST` | `/api/chat` | RAG tabanlı kaynaklı cevap üretir |
+| `GET` | `/api/chat/history` | Sohbet geçmişini getirir |
 
-Korumalı endpointlerde `Authorization: Bearer <token>` başlığı gerekir. İstek/yanıt örnekleri ve durum kodları [API belgesinde](docs/api.md) bulunur.
+Tam API dokümantasyonu: [docs/api.md](docs/api.md)
 
-## Belge durumları
+## Güvenlik ve dayanıklılık
 
-- `Pending`: belge işleme sırasında bekliyor
-- `Extracting`: PDF metni çıkarılıyor
-- `Indexing`: yapay zekâ arama indeksi hazırlanıyor
-- `RetryWaiting`: geçici hata sonrası otomatik yeniden deneme bekleniyor
-- `Ready`: sohbet aramasına hazır
-- `Failed`: dış servis veya indeksleme hatası oluştu; tekrar denenebilir
-- `NoContent`: PDF'den kullanılabilir metin çıkarılamadı
-- `Deleting`: Qdrant, dosya ve veritabanı temizliği tamamlanana kadar kalıcı silme kuyruğunda
+- JWT authentication
+- kullanıcı bazlı ownership kontrolleri
+- endpoint rate limiting
+- PDF imza ve boyut doğrulaması
+- güvenli fiziksel dosya adları
+- PDF sayfa / karakter / chunk işlem sınırları
+- başarısız belge işlemleri için durum ve retry yönetimi
+- gizli ayarları environment variables / user-secrets ile yönetme
+- CodeQL güvenlik analizi
 
-Sohbet yalnızca `Ready` belgeleri arar. Her kullanıcı sadece kendi belge ve sohbetlerine erişebilir.
+## Bilinen sınırlar
 
-## Yapılandırma
-
-| Anahtar | Varsayılan | Açıklama |
-| --- | --- | --- |
-| `JwtSettings:LifetimeMinutes` | `480` | JWT ömrü |
-| `OllamaSettings:TimeoutSeconds` | `0` | Ollama HTTP zaman aşımı; `0` sınırsız bekler |
-| `OllamaSettings:WarmupTimeoutSeconds` | `30` | Ollama kapalıysa API başlangıcının takılmasını önleyen model ısıtma bütçesi |
-| `OllamaSettings:KeepAlive` | `-1` | Sohbet modelini hızlı yanıt için bellekte tutma süresi; `-1` sürekli tutar |
-| `QdrantSettings:VectorSize` | `768` | Embedding boyutu; modelle aynı olmalı |
-| `QdrantSettings:UpsertBatchSize` | `64` | Vektör yazma paket boyutu |
-| `RagSettings:SearchLimit` | `4` | Cevap bağlamına alınan parça sayısı |
-| `RagSettings:MinimumScore` | `0.35` | En düşük benzerlik skoru |
-| `DocumentProcessingSettings:MaxChunks` | `2000` | Tek PDF için güvenli parça sınırı |
-| `DocumentProcessingSettings:MaxPages` | `500` | Tek PDF için sayfa sınırı |
-| `DocumentProcessingSettings:MaxExtractedCharacters` | `2000000` | Açılmış PDF metni için karakter bütçesi |
-| `DocumentProcessingSettings:TimeoutSeconds` | `60` | PDF ayrıştırma zaman bütçesi |
-| `DocumentProcessingSettings:MaxConcurrentDocuments` | `2` | Aynı anda ayrıştırılabilecek PDF sayısı |
-| `DocumentDeletionSettings:RetryIntervalSeconds` | `30` | Bekleyen kalıcı silmeleri yeniden deneme aralığı |
-| `ProxySettings:KnownProxies` | `[]` | `X-Forwarded-*` başlıklarına güvenilecek proxy IP'leri |
-| `Hosting:UseHttpsRedirection` | `true` | Doğrudan barındırmada HTTPS yönlendirmesi |
-
-ASP.NET ortam değişkenlerinde `:` yerine `__` kullanılır; örneğin `RagSettings__MinimumScore`.
+- Otomatik OCR yoktur; yalnızca taranmış görüntü içeren PDF'ler önce OCR işleminden geçirilmelidir.
+- Çok sütunlu sayfalar ve tablolar PDF metin sırasını bozabilir.
+- Kaynak eşleşmesi anlamsal doğruluk garantisi değildir.
+- Canlı demo Gemini erişimine ve API kotasına bağlıdır.
+- Canlı vitrin kalıcı belge arşivi değildir.
+- Büyük ölçekli production kullanımında süreç içi iş yönetimi yerine dağıtık job queue tercih edilmelidir.
 
 ## Proje yapısı
 
 ```text
 backend/SmartDocsAI.API/       ASP.NET Core API
-frontend/                      React arayüzü ve Vitest testleri
-tests/SmartDocsAI.API.Tests/   xUnit servis testleri
-database/                      PostgreSQL migration betiği ve arşiv
-docs/                          Mimari, API, veritabanı ve dağıtım belgeleri
-.github/workflows/ci.yml       CI iş akışı
-Dockerfile                     Üretim imajı
-docker-compose.yml             Uygulama servisleri
+frontend/                      React + TypeScript arayüzü
+tests/SmartDocsAI.API.Tests/   xUnit backend testleri
+docs/                          Mimari, API ve deployment belgeleri
+database/                      Veritabanı yardımcı dosyaları
+.github/workflows/             CI ve CodeQL
+Dockerfile                     Production image
+docker-compose.yml             Yerel servisler
 ```
 
-## Üretim notları
+## Dokümantasyon
 
-- `.env`, JWT anahtarı ve parolaları Git'e eklemeyin.
-- Uygulamayı TLS sonlandıran bir reverse proxy arkasında çalıştırın.
-- PostgreSQL, Qdrant ve `Uploads` volume'larını düzenli yedekleyin.
-- Qdrant koleksiyonunun vektör boyutunu embedding modeli değiştiğinde birlikte güncelleyin ve belgeleri yeniden indeksleyin.
-- Ölçekli kurulumda tek süreç içi yeniden indeksleme kilidi yerine dağıtık iş kuyruğu kullanın.
+- [Sistem mimarisi](docs/system-architecture.md)
+- [API](docs/api.md)
+- [Deployment](docs/deployment.md)
+- [Veritabanı](docs/database.md)
+- [Demo rehberi](docs/demo-guide.md)
+- [Katkı rehberi](CONTRIBUTING.md)
+- [Güvenlik politikası](SECURITY.md)
 
-Dağıtım ayrıntıları için [deployment.md](docs/deployment.md), şema ayrıntıları için [database.md](docs/database.md) dosyasına bakın.
+## English summary
+
+**SmartDocs AI** is a source-aware PDF assistant with a full local RAG stack. The local architecture combines ASP.NET Core, React, PostgreSQL, Qdrant and Ollama; a separate Vercel showcase provides a zero-install Gemini-powered demo. Answers include source references and heuristic claim–quote checks designed to make model output easier to inspect, not to guarantee factual correctness.
 
 ## Lisans
 
-Bu proje [MIT Lisansı](LICENSE) ile lisanslanmıştır.
+MIT — ayrıntılar için [LICENSE](LICENSE).
