@@ -29,6 +29,17 @@ updates:
         update-types:
           - minor
           - patch
+    ignore:
+      # Bu paketlerin büyük sürümleri .NET ana sürümüne bağlı; proje .NET 10 LTS'de kalıyor.
+      - dependency-name: "Microsoft.EntityFrameworkCore*"
+        update-types:
+          - version-update:semver-major
+      - dependency-name: "Microsoft.AspNetCore.*"
+        update-types:
+          - version-update:semver-major
+      - dependency-name: "Microsoft.OpenApi"
+        update-types:
+          - version-update:semver-major
   - package-ecosystem: docker
     directory: /
     schedule:
