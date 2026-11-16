@@ -28,7 +28,7 @@ RUN dotnet publish backend/SmartDocsAI.API/SmartDocsAI.API.csproj \
 # Program.cs serves publish/wwwroot when it contains a frontend build.
 COPY --from=frontend-build /src/frontend/dist/ /out/wwwroot/
 
-FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
+FROM mcr.microsoft.com/dotnet/aspnet:11.0 AS runtime
 WORKDIR /app
 
 ENV ASPNETCORE_URLS=http://+:8080 \
