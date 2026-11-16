@@ -17,13 +17,27 @@ updates:
         update-types:
           - version-update:semver-major
   - package-ecosystem: nuget
-    directory: /backend/SmartDocsAI.API
+    directories:
+      - /backend/SmartDocsAI.API
+      - /tests/SmartDocsAI.API.Tests
     schedule:
       interval: weekly
+    groups:
+      nuget-minor-ve-yama:
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
   - package-ecosystem: docker
     directory: /
     schedule:
       interval: weekly
+    ignore:
+      # Proje .NET 10 LTS hedefliyor; .NET 11 imajları net10.0 uygulamasını çalıştırmaz.
+      - dependency-name: "dotnet/*"
+        update-types:
+          - version-update:semver-major
   - package-ecosystem: github-actions
     directory: /
     schedule:
