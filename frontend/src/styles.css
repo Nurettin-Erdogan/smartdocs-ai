@@ -103,7 +103,7 @@ label { display:grid; gap:.46rem; color:var(--ink-soft); font-size:.85rem; font-
 .auth-panel { display:grid; gap:1.1rem; align-content:center; padding:clamp(1.4rem,3vw,2.5rem); }
 .mode-switch { display:grid; grid-template-columns:repeat(2,1fr); gap:.35rem; padding:.3rem; border-radius:14px; background:#f0f3f9; }
 .mode-switch button,.ghost-btn,.primary-btn { border:0; border-radius:11px; padding:.8rem 1rem; transition:transform .18s,box-shadow .18s,background .18s; }
-.mode-switch button { background:transparent; color:#71809b; font-size:.85rem; font-weight:800; }
+.mode-switch button { background:transparent; color:#5a6782; font-size:.85rem; font-weight:800; }
 .mode-switch button.active { color:var(--ink); background:white; box-shadow:0 3px 9px rgba(30,53,99,.09); }
 .auth-intro { display:flex; gap:.85rem; padding:.9rem 0 .25rem; }
 .auth-intro p { margin:.18rem 0 0; color:var(--ink-soft); font-size:.8rem; line-height:1.55; }
@@ -161,7 +161,7 @@ label { display:grid; gap:.46rem; color:var(--ink-soft); font-size:.85rem; font-
 .table-list,.scroll-list { display:grid; gap:.65rem; }
 .doc-row,.history-item,.chat-message { border:1px solid var(--line); border-radius:16px; background:#fcfdff; padding:.9rem; }
 .doc-row { display:grid; grid-template-columns:minmax(0,1.25fr) minmax(0,1fr) auto; gap:.85rem; align-items:center; }.doc-row strong,.doc-row p{overflow-wrap:anywhere;}
-.doc-meta { display:flex; flex-wrap:wrap; gap:.45rem; color:#71809b; font-size:.75rem; }.doc-actions {display:flex; flex-wrap:wrap; justify-content:flex-end; gap:.4rem;}
+.doc-meta { display:flex; flex-wrap:wrap; gap:.45rem; color:#5a6782; font-size:.75rem; }.doc-actions {display:flex; flex-wrap:wrap; justify-content:flex-end; gap:.4rem;}
 .ghost-btn.retry { color:var(--blue); background:#eaf1ff; }.status-pill { border-radius:999px; padding:.2rem .5rem; background:#f0f3f7; color:#65728b; font-size:.72rem; font-weight:800; white-space:nowrap; }.status-ready{color:#247451;background:#e4f8ed;}.status-failed{color:#b33752;background:#fff0f3;}.status-pending{color:#1e63c8;background:#e9f2ff;}.status-nocontent{color:#94620a;background:#fff6dd;}.status-deleting{color:#a84a16;background:#fff0e8;}
 .ghost-btn.preview{color:#28604f;background:#e8f8f1}
 .history-list{min-height:0}.scroll-list{max-height:280px;overflow:auto;padding-right:.2rem}.history-item{text-align:left;display:grid;gap:.2rem}.history-item.active{border-color:#aabff3;background:#eff4ff}.history-item strong,.history-item span,.history-item small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.history-item span,.history-item small{color:#758099;font-size:.72rem;}
