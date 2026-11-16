@@ -12,7 +12,7 @@ COPY frontend/ ./
 COPY api/ /src/api/
 RUN npm run typecheck && npm run build
 
-FROM mcr.microsoft.com/dotnet/sdk:10.0 AS backend-build
+FROM mcr.microsoft.com/dotnet/sdk:11.0 AS backend-build
 WORKDIR /src
 
 COPY backend/SmartDocsAI.API/SmartDocsAI.API.csproj backend/SmartDocsAI.API/
