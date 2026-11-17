@@ -49,6 +49,17 @@ namespace SmartDocsAI.API.Models
 
         public DateTime? ProcessingStartedAt { get; set; }
 
+        // Çit jetonu (fencing token): worker belgeyi her sahiplendiğinde yenilenir.
+        // Eşzamanlılık jetonu olduğu için belgeye yapılan her SaveChanges bu değeri
+        // WHERE koşuluna ekler; sahipliği kaybetmiş eski bir worker'ın yazması
+        // DbUpdateConcurrencyException ile reddedilir.
+        [ConcurrencyCheck]
+        public Guid? ProcessingLeaseId { get; set; }
+
+        // Worker'ın hâlâ çalıştığını gösteren son sinyal. Sahiplik bu değer
+        // LeaseTimeout'tan eskiyse başka bir worker tarafından devralınabilir.
+        public DateTime? ProcessingHeartbeatAt { get; set; }
+
         public int ProcessingAttemptCount { get; set; }
 
         public DateTime? NextProcessingAttemptAt { get; set; }

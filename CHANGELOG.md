@@ -6,9 +6,16 @@
 
 ### Eklendi
 
+- İndeksleme kuyruğunda çit jetonu (`ProcessingLeaseId`, EF Core eşzamanlılık jetonu) ve heartbeat (`ProcessingHeartbeatAt`): sahipliği kaybeden işçinin yazmaları reddedilir, parçalar belgeyle aynı işlemde yazılır.
+- Düzgün kapanışta işçinin belgeyi hemen kuyruğa geri bırakması.
+- CI'da PostgreSQL 17 servis konteyneriyle entegrasyon testleri (migration'lar, 8 paralel sahiplenme, çit) ve migration anlık görüntüsü ile model uyum testi.
 - Vitrin demosunda Gemini veri akışını ve yerel/Docker ayrımını arayüzde netleştirme.
 - README İngilizce özeti, canlı vitrin badge’i ve portföy tablosunda demo/gizlilik satırları.
 - Vercel `/api/answer` yanıtında `Retry-After` başlığı.
+
+### Değiştirildi
+
+- Lease süresi 30 dakikadan 5 dakikaya indi: heartbeat sayesinde çöken işçinin belgesi dakikalar içinde devralınır, çalışan işçininki devralınmaz.
 
 ### Değiştirildi
 

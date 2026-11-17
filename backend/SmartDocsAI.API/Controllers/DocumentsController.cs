@@ -297,7 +297,9 @@ public sealed class DocumentsController : ControllerBase
                     .SetProperty(item => item.IndexingError, (string?)null)
                     .SetProperty(item => item.ProcessingAttemptCount, 0)
                     .SetProperty(item => item.NextProcessingAttemptAt, (DateTime?)null)
-                    .SetProperty(item => item.ProcessingStartedAt, (DateTime?)null),
+                    .SetProperty(item => item.ProcessingStartedAt, (DateTime?)null)
+                    .SetProperty(item => item.ProcessingHeartbeatAt, (DateTime?)null)
+                    .SetProperty(item => item.ProcessingLeaseId, (Guid?)null),
                 cancellationToken);
 
         if (transitioned == 0)

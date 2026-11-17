@@ -115,6 +115,13 @@ namespace SmartDocsAI.API.Migrations
                     b.Property<DateTime?>("ProcessingStartedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<Guid?>("ProcessingLeaseId")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("ProcessingHeartbeatAt")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<int>("ProcessingAttemptCount")
                         .HasColumnType("integer");
 

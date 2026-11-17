@@ -20,6 +20,21 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
+    # Kuyruk sahiplenme ve çit testleri SQLite'ın tek yazıcı modelinde değil,
+    # gerçek satır kilitleriyle PostgreSQL'de doğrulanır (Compose ile aynı sürüm).
+    services:
+      postgres:
+        image: postgres:17.10-alpine3.23
+        env:
+          POSTGRES_PASSWORD: ci-postgres-password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -44,7 +59,9 @@ jobs:
           dotnet format tests/SmartDocsAI.API.Tests/SmartDocsAI.API.Tests.csproj
           --verify-no-changes --no-restore
 
-      - name: Test
+      - name: Test (PostgreSQL entegrasyon testleri dahil)
+        env:
+          SMARTDOCS_TEST_POSTGRES: Host=localhost;Port=5432;Username=postgres;Password=ci-postgres-password;Database=postgres
         run: dotnet test tests/SmartDocsAI.API.Tests/SmartDocsAI.API.Tests.csproj --configuration Release --no-build --no-restore
 
   frontend:
