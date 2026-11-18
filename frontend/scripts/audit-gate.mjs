@@ -46,11 +46,17 @@ export function evaluateAudit(report, exceptions, today) {
 }
 
 function runNpmAudit() {
+  // `npm run` çalışırken npm'in kendi yolunu npm_execpath ile verir; onu
+  // doğrudan Node ile çağırmak kabuk (shell) kullanmadan her işletim
+  // sisteminde çalışır. Windows'ta npm bir .cmd dosyası olduğu için aksi
+  // hâlde shell: true gerekirdi (Node bunu DEP0190 ile uyarır).
+  const [command, args] = process.env.npm_execpath
+    ? [process.execPath, [process.env.npm_execpath, 'audit', '--json']]
+    : ['npm', ['audit', '--json']];
   try {
-    return execFileSync('npm', ['audit', '--json'], {
+    return execFileSync(command, args, {
       encoding: 'utf8',
       maxBuffer: 32 * 1024 * 1024,
-      shell: process.platform === 'win32',
     });
   } catch (error) {
     // npm audit açık bulduğunda 1 ile çıkar; JSON yine stdout'tadır.
