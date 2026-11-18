@@ -86,8 +86,11 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Audit dependencies
-        run: npm audit --audit-level=moderate
+      # moderate ve üstü her açık CI'ı durdurur. Tek istisna, frontend/audit-exceptions.json
+      # içinde gerekçesi ve inceleme tarihi yazılı, yamalı sürümü olmayan bildirimlerdir;
+      # tarih geçince istisna düşer ve kapı yeniden kırmızıya döner.
+      - name: Audit dependencies (süreli istisnalı kapı)
+        run: npm run audit:gate
 
       - name: Type-check
         run: npm run typecheck

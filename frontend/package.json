@@ -7,6 +7,7 @@
     "dev": "vite",
     "typecheck": "tsc -b",
     "test": "vitest run",
+    "audit:gate": "node scripts/audit-gate.mjs",
     "build": "vite build",
     "build:demo": "vite build --mode demo",
     "preview": "vite preview"

@@ -1,0 +1,8 @@
+[
+  {
+    "id": "GHSA-fc5q-39xc-vjpf",
+    "package": "picomatch",
+    "reason": "Yamalı sürüm yok (bildirim <=4.0.7 sürümlerini kapsıyor). picomatch yalnızca geliştirme araçlarında (vite, vitest, tinyglobby) glob eşleme için kullanılıyor; desenler geliştiricinin yapılandırmasından geliyor, kullanıcı girdisinden değil. Üretim paketinde yok: npm audit --omit=dev 0 açık veriyor. Yama yayımlanınca Dependabot güncellemesiyle kaldırılacak.",
+    "reviewBy": "2026-12-17"
+  }
+]
