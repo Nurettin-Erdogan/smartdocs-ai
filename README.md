@@ -113,7 +113,11 @@ Belge, sohbet ve Qdrant aramaları kullanıcı sahipliğiyle sınırlandırılı
 
 ### Hata durumunda kontrollü davranış
 
-İndeksleme işlemleri durum bazlı takip edilir; geçici hatalar retry akışına alınabilir. Canlı vitrinde Gemini kullanılamadığında sınırlı yerel metin davranışı devreye girebilir ve bu cevap AI cevabı gibi sunulmaz.
+İndeksleme işlemleri durum bazlı takip edilir; geçici hatalar retry akışına alınabilir.
+
+### Kuyrukta sahiplik: lease, heartbeat ve çit (fencing)
+
+İndeksleme kuyruğu PostgreSQL üzerinde çalışır ve birden fazla API örneğiyle güvenlidir. Bir belgeyi sahiplenen işçi, her sahiplenmede yenilenen bir **çit jetonu** (`ProcessingLeaseId`) alır; EF Core bu değeri eşzamanlılık jetonu olarak her yazmanın `WHERE` koşuluna ekler. İşçi çalışırken **heartbeat** gönderir. Çöken bir işçinin belgesi 5 dakika içinde devralınır. Düzgün kapanışta işçi belgeyi hemen kuyruğa geri bırakır. Yavaşladığı için sahipliği kaybeden bir işçi geri döndüğünde ise yazmaları `DbUpdateConcurrencyException` ile reddedilir; belgeye yinelenen parça veya eski bir `Ready` durumu yazamaz. Ayrıntı: [docs/system-architecture.md](docs/system-architecture.md#kuyrukta-sahiplik-lease-heartbeat-ve-çit). Canlı vitrinde Gemini kullanılamadığında sınırlı yerel metin davranışı devreye girebilir ve bu cevap AI cevabı gibi sunulmaz.
 
 ## Mimari
 
@@ -200,6 +204,14 @@ Backend testleri:
 dotnet test tests\SmartDocsAI.API.Tests\SmartDocsAI.API.Tests.csproj --configuration Release
 ```
 
+Kuyruk sahiplenme ve çit davranışını gerçek PostgreSQL'de doğrulayan entegrasyon testleri `SMARTDOCS_TEST_POSTGRES` tanımlıysa çalışır, yoksa gerekçesiyle atlanır. CI bu testleri PostgreSQL 17 servis konteynerine karşı her PR'da koşar ve orada atlanmalarına izin vermez:
+
+```powershell
+docker run -d --name smartdocs-test-pg -e POSTGRES_PASSWORD=test -p 55433:5432 postgres:17.10-alpine3.23
+$env:SMARTDOCS_TEST_POSTGRES = "Host=localhost;Port=55433;Username=postgres;Password=test;Database=postgres"
+dotnet test tests\SmartDocsAI.API.Tests\SmartDocsAI.API.Tests.csproj --configuration Release
+```
+
 Frontend:
 
 ```powershell
@@ -243,6 +255,7 @@ Tam API dokümantasyonu: [docs/api.md](docs/api.md)
 - güvenli fiziksel dosya adları
 - PDF sayfa / karakter / chunk işlem sınırları
 - başarısız belge işlemleri için durum ve retry yönetimi
+- çok örnekli çalışmada güvenli indeksleme kuyruğu: atomik sahiplenme, heartbeat, çit jetonu ve kapanışta lease bırakma
 - gizli ayarları environment variables / user-secrets ile yönetme
 - CodeQL güvenlik analizi
 
@@ -253,7 +266,7 @@ Tam API dokümantasyonu: [docs/api.md](docs/api.md)
 - Kaynak eşleşmesi anlamsal doğruluk garantisi değildir.
 - Canlı demo Gemini erişimine ve API kotasına bağlıdır.
 - Canlı vitrin kalıcı belge arşivi değildir.
-- Büyük ölçekli production kullanımında süreç içi iş yönetimi yerine dağıtık job queue tercih edilmelidir.
+- İndeksleme kuyruğu PostgreSQL yoklamasıyla (polling) çalışır ve birden fazla API örneğinde güvenlidir; çok yüksek hacimde özel bir mesaj kuyruğu (ör. RabbitMQ) ve ayrı işçi süreçleri daha verimli olur.
 
 ## Proje yapısı
 
@@ -280,7 +293,7 @@ docker-compose.yml             Yerel servisler
 
 ## English summary
 
-**SmartDocs AI** is a source-aware PDF assistant with a full local RAG stack. The local architecture combines ASP.NET Core, React, PostgreSQL, Qdrant and Ollama; a separate Vercel showcase provides a zero-install Gemini-powered demo. Answers include source references and heuristic claim–quote checks designed to make model output easier to inspect, not to guarantee factual correctness.
+**SmartDocs AI** is a source-aware PDF assistant with a full local RAG stack. The local architecture combines ASP.NET Core, React, PostgreSQL, Qdrant and Ollama; a separate Vercel showcase provides a zero-install Gemini-powered demo. Answers include source references and heuristic claim–quote checks designed to make model output easier to inspect, not to guarantee factual correctness. Document indexing runs on a PostgreSQL-backed queue that is safe across multiple API instances: workers claim documents with an atomic conditional update, renew a heartbeat while generating embeddings, release their lease on graceful shutdown, and carry a fencing token (an EF Core concurrency token) so a worker that lost its lease cannot write stale results. This behaviour is verified against a real PostgreSQL 17 service container in CI.
 
 ## Lisans
 

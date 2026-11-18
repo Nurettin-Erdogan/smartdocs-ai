@@ -25,7 +25,7 @@
 
 ## Üretim öncesi sonraki öncelikler
 
-1. Arka plan iş kuyruğu ve dağıtık yeniden indeksleme kilidi
+1. ~~Arka plan iş kuyruğu ve dağıtık yeniden indeksleme kilidi~~ — tamamlandı: PostgreSQL tabanlı kuyruk, heartbeat ve çit jetonuyla korunan lease
 2. PostgreSQL/Qdrant/Uploads için otomatik yedekleme ve geri yükleme testi
 3. OCR iş hattı
 4. Entegrasyon ve tarayıcı uçtan uca testleri

@@ -66,9 +66,34 @@ Embedding modelinin boyutu Qdrant `VectorSize` ile aynı olmalıdır. Varsayıla
 9. Qdrant koleksiyonu yoksa oluşturulur ve vektörler paketler hâlinde yazılır.
 10. Belge `Ready`, `Failed` veya `NoContent` durumuna geçirilir.
 
-Geçici hata oluşursa belge gecikmeli olarak üç kez otomatik denenir. Süresi dolan işlem
-kiraları başka bir işçi tarafından geri alınabilir. İndeksleme başarısız olsa bile PDF ve
-çıkarılmış parçalar korunur; kullanıcı manuel yeniden indeksleme de başlatabilir.
+Geçici hata oluşursa belge gecikmeli olarak üç kez otomatik denenir. İndeksleme başarısız
+olsa bile PDF ve çıkarılmış parçalar korunur; kullanıcı manuel yeniden indeksleme de başlatabilir.
+
+### Kuyrukta sahiplik: lease, heartbeat ve çit
+
+Sahiplenme tek bir koşullu `UPDATE`'tir; aynı belgeyi isteyen işçilerden yalnızca birinin
+güncellemesi satır etkiler. Sahiplenme üç değer yazar:
+
+| Alan | Görev |
+| --- | --- |
+| `ProcessingLeaseId` | Her sahiplenmede yeni `Guid` (çit jetonu). EF Core eşzamanlılık jetonu olduğu için belgeye yapılan her yazma `WHERE ProcessingLeaseId = @lease` koşulu taşır. |
+| `ProcessingHeartbeatAt` | İşçi her embedding grubundan sonra (en geç `HeartbeatSeconds`) yeniler. |
+| `ProcessingStartedAt` | Ölçüm ve eski kayıtlarla uyum için başlangıç zamanı. |
+
+- **Çöken işçi:** heartbeat `LeaseTimeoutMinutes` (varsayılan 5 dk) boyunca yenilenmezse belge
+  başka bir işçiye geçer. Önceki tasarımda süre 30 dakikaydı.
+- **Düzgün kapanış:** iptal geldiğinde işçi lease'ini bırakır ve belgeyi `Pending` yapar; yeniden
+  başlatılan uygulama beklemeden devam eder.
+- **Yavaş ama yaşayan işçi:** süre aşımıyla devralınan bir işçinin sonraki yazması
+  `DbUpdateConcurrencyException` ile reddedilir. Parçalar belgeyle aynı `SaveChanges` içinde yazıldığı
+  için kısmi yazma da geri alınır; eski işçi `Ready` durumunu veya yinelenen parça yazamaz.
+- **Kalan risk:** Qdrant harici bir sistemdir; devralınan işçinin o ana kadar yazdığı vektörler
+  yeni bir `indexVersion` ile kalabilir. Arama yalnızca belgenin `CurrentIndexVersion` değerine ait
+  vektörleri döndürdüğü için bu vektörler cevaplara karışmaz, yalnızca yer kaplar.
+
+Bu davranış hem SQLite birim testleriyle (çalınan lease senaryoları) hem de CI'daki gerçek
+PostgreSQL 17 entegrasyon testleriyle (8 paralel işçiden yalnızca birinin sahiplenmesi, çitin eski
+yazmayı reddetmesi, migration'ların sıfırdan uygulanması) doğrulanır.
 
 ## Güvenli yeniden indeksleme
 

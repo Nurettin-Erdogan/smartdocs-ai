@@ -1,4 +1,3 @@
-using Microsoft.EntityFrameworkCore;
 using SmartDocsAI.API.Data;
 using SmartDocsAI.API.Interfaces;
 
@@ -6,8 +5,6 @@ namespace SmartDocsAI.API.Services;
 
 public sealed class PendingDocumentIndexingWorker : BackgroundService
 {
-    private static readonly string[] ActiveStatuses = ["Extracting", "Indexing"];
-
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<PendingDocumentIndexingWorker> _logger;
     private readonly TimeSpan _pollInterval;
@@ -25,14 +22,26 @@ public sealed class PendingDocumentIndexingWorker : BackgroundService
             configuration.GetValue<int?>("DocumentIndexingSettings:PollIntervalSeconds") ?? 2,
             1,
             60));
+        // Heartbeat sayesinde süre kısa tutulabilir: çöken bir worker'ın belgesi
+        // dakikalar içinde devralınır, çalışan bir worker'ınki ise devralınmaz.
         _leaseTimeout = TimeSpan.FromMinutes(Math.Clamp(
-            configuration.GetValue<int?>("DocumentIndexingSettings:LeaseTimeoutMinutes") ?? 30,
-            5,
+            configuration.GetValue<int?>("DocumentIndexingSettings:LeaseTimeoutMinutes") ?? 5,
+            1,
             240));
         _batchSize = Math.Clamp(
             configuration.GetValue<int?>("DocumentIndexingSettings:BatchSize") ?? 2,
             1,
             20);
+
+        var heartbeat = TimeSpan.FromSeconds(
+            configuration.GetValue<int?>("DocumentIndexingSettings:HeartbeatSeconds") ?? 30);
+        if (heartbeat * 3 > _leaseTimeout)
+        {
+            _logger.LogWarning(
+                "DocumentIndexingSettings: heartbeat ({Heartbeat}) should be at most a third of the lease timeout ({LeaseTimeout}); healthy workers may lose their lease.",
+                heartbeat,
+                _leaseTimeout);
+        }
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -54,44 +63,26 @@ public sealed class PendingDocumentIndexingWorker : BackgroundService
             var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
             var indexingService =
                 scope.ServiceProvider.GetRequiredService<IDocumentIndexingService>();
-            var now = DateTime.UtcNow;
-            var staleBefore = now - _leaseTimeout;
 
-            var documentIds = await context.Documents
-                .AsNoTracking()
-                .Where(document =>
-                    document.IndexingStatus == "Pending" ||
-                    (document.IndexingStatus == "RetryWaiting" &&
-                     document.NextProcessingAttemptAt <= now) ||
-                    (ActiveStatuses.Contains(document.IndexingStatus) &&
-                     document.ProcessingStartedAt < staleBefore))
-                .OrderBy(document => document.UploadDate)
-                .Select(document => document.Id)
-                .Take(_batchSize)
-                .ToListAsync(cancellationToken);
+            var documentIds = await DocumentProcessingLeases.FindClaimableAsync(
+                context,
+                DateTime.UtcNow,
+                _leaseTimeout,
+                _batchSize,
+                cancellationToken);
 
             foreach (var documentId in documentIds)
             {
-                var claimedAt = DateTime.UtcNow;
-                var claimed = await context.Documents
-                    .Where(document =>
-                        document.Id == documentId &&
-                        (document.IndexingStatus == "Pending" ||
-                         (document.IndexingStatus == "RetryWaiting" &&
-                          document.NextProcessingAttemptAt <= claimedAt) ||
-                         (ActiveStatuses.Contains(document.IndexingStatus) &&
-                          document.ProcessingStartedAt < staleBefore)))
-                    .ExecuteUpdateAsync(
-                        setters => setters
-                            .SetProperty(document => document.IndexingStatus, "Extracting")
-                            .SetProperty(document => document.IndexingError, (string?)null)
-                            .SetProperty(document => document.NextProcessingAttemptAt, (DateTime?)null)
-                            .SetProperty(document => document.ProcessingStartedAt, claimedAt),
-                        cancellationToken);
+                var leaseId = await DocumentProcessingLeases.TryClaimAsync(
+                    context,
+                    documentId,
+                    DateTime.UtcNow,
+                    _leaseTimeout,
+                    cancellationToken);
 
-                if (claimed == 1)
+                if (leaseId is { } claimedLease)
                 {
-                    await indexingService.ProcessAsync(documentId, cancellationToken);
+                    await indexingService.ProcessAsync(documentId, claimedLease, cancellationToken);
                     context.ChangeTracker.Clear();
                 }
             }

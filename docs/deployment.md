@@ -157,9 +157,12 @@ Cors__AllowedOrigins__0=https://smartdocs.example.com
 Tek makine Compose kurulumu bir uygulama örneğine yöneliktir. Birden çok API örneğinde:
 
 - migration'ı uygulama başlangıcından ayrı tekil işe taşıyın
-- indeksleme kuyruğu için `DocumentIndexingSettings` kiralama, deneme ve gecikme
-  değerlerini iş yükünüze göre ayarlayın
-- dağıtık kilit kullanın
+- indeksleme kuyruğu birden çok örnekte güvenlidir (atomik sahiplenme + çit jetonu); ek bir
+  dağıtık kilit gerekmez. `DocumentIndexingSettings` altında `LeaseTimeoutMinutes`
+  (varsayılan 5), `HeartbeatSeconds` (varsayılan 30; lease süresinin en fazla üçte biri olmalı),
+  `MaxAttempts` ve `RetryDelaySeconds` değerlerini iş yükünüze göre ayarlayın
+- örnekleri kapatırken `SIGTERM` ile düzgün kapanışa izin verin; işçi elindeki belgeyi
+  kuyruğa geri bırakır
 - `Uploads` için paylaşımlı nesne depolama kullanın
 - Qdrant ve PostgreSQL'i yönetilen/yüksek erişilebilir kurun
 
