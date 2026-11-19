@@ -1,0 +1,29 @@
+name: Canlı demo kontrolü
+
+# Vercel'deki canlı demoyu her sabah 06:30'da (TSİ, UTC+3) uçtan uca doğrular:
+# sayfa ve güvenlik başlıkları yayında mı, Gemini erişimi çalışıyor mu ve cevap
+# kaynaktan alıntıyla doğrulanıyor mu? Başarısız olursa GitHub e-posta gönderir.
+# Kontrol günde tek bir kısa Gemini çağrısı yapar.
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "30 3 * * *"
+
+permissions:
+  contents: read
+
+jobs:
+  live:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Kodu al
+        uses: actions/checkout@v7
+
+      - name: Node.js kur
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: Canlı demoyu doğrula
+        run: node scripts/live-smoke-cli.mts

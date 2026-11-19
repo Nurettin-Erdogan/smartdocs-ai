@@ -7,6 +7,7 @@
 <p align="center">
   <a href="https://github.com/Nurettin-Erdogan/smartdocs-ai/actions/workflows/ci.yml"><img src="https://github.com/Nurettin-Erdogan/smartdocs-ai/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI durumu"></a>
   <a href="https://github.com/Nurettin-Erdogan/smartdocs-ai/actions/workflows/codeql.yml"><img src="https://github.com/Nurettin-Erdogan/smartdocs-ai/actions/workflows/codeql.yml/badge.svg?branch=main" alt="CodeQL güvenlik analizi"></a>
+  <a href="https://github.com/Nurettin-Erdogan/smartdocs-ai/actions/workflows/live-check.yml"><img src="https://github.com/Nurettin-Erdogan/smartdocs-ai/actions/workflows/live-check.yml/badge.svg?branch=main" alt="Canlı demo kontrolü"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-0f766e.svg" alt="MIT License"></a>
   <a href="https://smartdocs-ai-henna.vercel.app"><img src="https://img.shields.io/badge/live-Vercel-0f766e.svg" alt="Canlı demo"></a>
   <img src="https://img.shields.io/badge/.NET-10-0f766e.svg" alt=".NET 10">
