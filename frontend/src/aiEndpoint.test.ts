@@ -127,4 +127,29 @@ describe('Vercel AI answer endpoint', () => {
     expect(response.body).toEqual({ message: 'Yapay zekâ servisi henüz yapılandırılmadı.' });
     expect(fetchMock).not.toHaveBeenCalled();
   });
+
+  it('logs the Gemini failure reason without leaking the key or upstream message', async () => {
+    vi.stubEnv('GEMINI_API_KEY', 'test-secret-key');
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({
+      error: { code: 404, status: 'NOT_FOUND', message: 'models/unknown is not found for API version v1beta' }
+    }), { status: 404, headers: { 'Content-Type': 'application/json' } }));
+    const response = responseForTest();
+
+    await answerHandler({
+      method: 'POST',
+      headers: { 'x-forwarded-for': '198.51.100.40' },
+      body: {
+        question: 'Belge ne anlatıyor?',
+        sources: [{ title: 'Belge', pageNumber: 1, content: 'Örnek içerik' }]
+      }
+    }, response);
+
+    expect(response.statusCode).toBe(502);
+    expect(response.body).toEqual({ message: 'Yapay zekâ servisi şu anda cevap veremiyor.' });
+    expect(logged).toHaveBeenCalledWith('Gemini request failed', 404, 'NOT_FOUND');
+    const logText = JSON.stringify(logged.mock.calls);
+    expect(logText).not.toContain('test-secret-key');
+    expect(logText).not.toContain('is not found');
+  });
 });

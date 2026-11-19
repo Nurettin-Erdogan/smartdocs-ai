@@ -6,6 +6,10 @@
 
 ### Eklendi
 
+- Canlı demo kontrolü (`scripts/live-smoke.ts`, `live-check.yml`): Vercel'deki demo her sabah uçtan uca doğrulanır. Sayfa başlığı ve `frame-ancestors 'none'` CSP'si, Gemini erişimi ve cevabın kaynaktan alıntıyla doğrulanması kontrol edilir; geçici hatada bir kez yeniden denenir. Node 24 betiği derlemeden çalıştırır.
+- Canlı kontrolün varsayımlarını gerçek `/api/answer` işleyicisine karşı doğrulayan 6 test.
+- Gemini hata verdiğinde loglara HTTP durumuyla birlikte Google RPC durumu (`RESOURCE_EXHAUSTED`, `NOT_FOUND` vb.) yazılır; arızanın kota, model adı ya da anahtar kaynaklı olduğu loglardan ayırt edilebilir. Anahtar ve hata mesajı loglanmaz.
+
 - İndeksleme kuyruğunda çit jetonu (`ProcessingLeaseId`, EF Core eşzamanlılık jetonu) ve heartbeat (`ProcessingHeartbeatAt`): sahipliği kaybeden işçinin yazmaları reddedilir, parçalar belgeyle aynı işlemde yazılır.
 - Düzgün kapanışta işçinin belgeyi hemen kuyruğa geri bırakması.
 - CI'da PostgreSQL 17 servis konteyneriyle entegrasyon testleri (migration'lar, 8 paralel sahiplenme, çit) ve migration anlık görüntüsü ile model uyum testi.

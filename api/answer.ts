@@ -380,9 +380,13 @@ export default async function handler(request: ApiRequest, response: ApiResponse
       }
     );
 
-    const payload = await upstream.json() as GeminiResponse & { error?: { message?: string } };
+    const payload = await upstream.json() as GeminiResponse & { error?: { message?: string; status?: string } };
     if (!upstream.ok) {
-      console.error('Gemini request failed', upstream.status);
+      // Google RPC durumu (ör. RESOURCE_EXHAUSTED, NOT_FOUND, PERMISSION_DENIED) arızanın
+      // kota, model adı ya da anahtar kaynaklı olduğunu loglardan ayırt etmeyi sağlar.
+      // Mesaj metni loglanmaz; durum kodu gizli bilgi içermez.
+      const reason = typeof payload.error?.status === 'string' ? payload.error.status : 'UNKNOWN';
+      console.error('Gemini request failed', upstream.status, reason);
       response.status(502).json({ message: 'Yapay zekâ servisi şu anda cevap veremiyor.' });
       return;
     }
